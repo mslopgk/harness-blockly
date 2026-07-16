@@ -6,6 +6,8 @@ import ConsoleLogs from './components/ConsoleLogs';
 import VariableWatch from './components/VariableWatch';
 import ASTTreeView from './components/ASTTreeView';
 import LibraryManager from './components/LibraryManager';
+import RobotConnect from './components/RobotConnect';
+import RobotCalibrate from './components/RobotCalibrate';
 import { interruptPyodide, prewarmEnvironment, writeImageToFS } from './utils/pyodideRunner';
 import stdlibSpecs from './data/stdlibSpecs.json';
 
@@ -1377,6 +1379,13 @@ for i in range(4):
               >
                 AI
               </button>
+              <button
+                id="tab-btn-robot"
+                className={`tab-btn ${activeAuxTab === 'robot' ? 'active' : ''}`}
+                onClick={() => setActiveAuxTab('robot')}
+              >
+                Robot
+              </button>
             </div>
             <div className="tab-content-wrapper">
               {activeAuxTab === 'files' && (
@@ -1415,6 +1424,12 @@ for i in range(4):
                     onPipPkgChange={setPipPkg}
                     onPipInstallShell={handlePipInstallShell}
                   />
+                </div>
+              )}
+              {activeAuxTab === 'robot' && (
+                <div className="robot-tab-scroll" style={{ overflowY: 'auto', height: '100%' }}>
+                  <RobotConnect />
+                  <RobotCalibrate />
                 </div>
               )}
               {activeAuxTab === 'gray' && (
