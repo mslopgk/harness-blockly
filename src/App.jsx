@@ -9,6 +9,7 @@ import LibraryManager from './components/LibraryManager';
 import RobotConnect from './components/RobotConnect';
 import RobotCalibrate from './components/RobotCalibrate';
 import TeachableMachine from './components/TeachableMachine';
+import ExampleGallery from './components/ExampleGallery';
 import { interruptPyodide, prewarmEnvironment, writeImageToFS } from './utils/pyodideRunner';
 import stdlibSpecs from './data/stdlibSpecs.json';
 
@@ -33,6 +34,7 @@ export default function App() {
   const [activeFile, setActiveFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null); // { name, url } | null
   const [fsReload, setFsReload] = useState(0);
+  const [showExamples, setShowExamples] = useState(false);
 
   // OpenCV image output (from real cv2.imshow) + uploaded image name
   const [cv2Images, setCv2Images] = useState([]);
@@ -680,6 +682,23 @@ for i in range(4):
       // Deferred sync fires only if the editor still shows this demo — a user who replaced the
       // content within the delay window must not have their code's blocks clobbered.
       if (latestCodeRef.current === demoCode) syncCodeToBlocks(demoCode);
+    }, 100);
+  };
+
+  // 예제 갤러리/드롭다운 공유 로드 경로. loadDemoScript와 동일한 안전 패턴:
+  // 코드+desugar 세팅 → 파이썬 화면 전환 → 지연 변환(세대 가드가 중복/경합 안전 처리).
+  // latestCodeRef 가드: 지연 창 안에 사용자가 코드를 바꾸면 덮어쓰지 않는다.
+  const loadExampleSnippet = (sn) => {
+    if (!sn || typeof sn.code !== 'string') return;
+    setShouldDesugar(!!sn.desugar);
+    latestCodeRef.current = sn.code;
+    setCode(sn.code);
+    setHighlightedLine(null);
+    setActiveEditorTab('python');
+    setShowExamples(false);
+    setLogs([`[Examples] "${sn.title}" 예제를 불러왔습니다.`]);
+    setTimeout(() => {
+      if (latestCodeRef.current === sn.code) syncCodeToBlocks(sn.code);
     }, 100);
   };
 
@@ -1538,6 +1557,16 @@ for i in range(4):
                 >
                   <i className="fa-solid fa-stop"></i>
                 </button>
+                {(typeof window !== 'undefined' && window.BlockPyExamples && window.BlockPyExamples.length > 0) && (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    id="btn-examples"
+                    onClick={() => setShowExamples(true)}
+                    title="예제 코드 갤러리 열기"
+                  >
+                    <i className="fa-solid fa-book-open"></i> 예제
+                  </button>
+                )}
                 <label className="btn btn-secondary btn-sm" htmlFor="cv-image-upload" style={{ cursor: 'pointer' }}>
                   <i className="fa-solid fa-upload"></i> Image
                   <input
@@ -1574,7 +1603,7 @@ for i in range(4):
                   onSyncToBlocks={handleSyncToBlocksClick}
                   syntaxStatus={syntaxStatus}
                   highlightedLine={highlightedLine}
-                  onLoadExample={(sn) => { setCode(sn.code); setShouldDesugar(sn.desugar); }}
+                  onLoadExample={loadExampleSnippet}
                 />
               </div>
               <div style={{ display: activeEditorTab === 'desugar' ? 'block' : 'none', height: '100%' }}>
@@ -1642,6 +1671,12 @@ for i in range(4):
           </div>
         </div>
       )}
+
+      <ExampleGallery
+        open={showExamples}
+        onClose={() => setShowExamples(false)}
+        onLoad={loadExampleSnippet}
+      />
     </div>
   );
 }
