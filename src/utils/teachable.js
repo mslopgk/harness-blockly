@@ -35,6 +35,7 @@ async function ensureBase() {
 }
 
 // input(HTMLVideo/Image/Canvas) -> 임베딩 텐서 [1, D].
+// 소유권 계약: 반환된 텐서는 호출자가 소유한다 — 다 쓰면 호출자가 반드시 .dispose() 해야 한다(메모리 누수 방지).
 async function featurize(input) {
   const tf = await ensureTf();
   const fake = testFeaturizer();
@@ -65,8 +66,8 @@ async function trainHead(head, samples, numClasses, opts = {}) {
   const ys = tf.oneHot(tf.tensor1d(samples.map((s) => s.classIndex), 'int32'), numClasses);
   try {
     return await head.fit(xs, ys, {
-      epochs: opts.epochs || 20,
-      batchSize: Math.min(opts.batchSize || 16, samples.length),
+      epochs: opts.epochs ?? 20,
+      batchSize: Math.min(opts.batchSize ?? 16, samples.length),
       shuffle: true,
       callbacks: opts.onEpoch ? { onEpochEnd: (e, logs) => opts.onEpoch(e, logs) } : undefined,
     });
@@ -77,6 +78,7 @@ async function trainHead(head, samples, numClasses, opts = {}) {
 }
 
 // embedding [1,D] -> {index, label, confidence, all}
+// 소유권 계약: 이 함수는 embedding 인자를 dispose 하지 않는다 — 호출자가 소유/정리 책임을 진다.
 async function predictTop(head, embedding, labels) {
   const logits = head.predict(embedding);
   const data = await logits.data();

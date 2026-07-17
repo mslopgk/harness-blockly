@@ -39,4 +39,23 @@ test.describe('Teachable Machine core (teachable+tmPack)', () => {
     expect(['A', 'B']).toContain(result.predLabel);
     expect(result.predConfIsNum).toBe(true);
   });
+
+  test('featurize() test-hook 경로 — window.__TM_TEST_FEATURIZER 로 MobileNet 미로드 임베딩 생성', async ({ page }) => {
+    // 앱 로드 전에 테스트 featurizer 를 주입해야 teachable.js 의 testFeaturizer() 가 이를 감지한다.
+    await page.addInitScript(() => {
+      window.__TM_TEST_FEATURIZER = () => [0.1, 0.2, 0.3, 0.4];
+    });
+    await page.goto('/');
+    await expect.poll(async () => page.evaluate(() => !!window.BlockPyTM), { timeout: 30000 }).toBe(true);
+
+    const shape = await page.evaluate(async () => {
+      const TM = window.BlockPyTM;
+      const emb = await TM.featurize(document.createElement('canvas'));
+      const shape = emb.shape;
+      emb.dispose();
+      return shape;
+    });
+
+    expect(shape).toEqual([1, 4]);
+  });
 });
