@@ -90,7 +90,7 @@ for (const [from, to] of DIRS) {
 // 내려받는다(온라인 전용). 오프라인 구동을 위해 model.json + weight shard 들을
 // public/vendor/mobilenet 으로 한 번 복사해 둔다. 존재하면 skip, 오프라인이면 경고만.
 async function vendorMobileNet() {
-  const base = 'https://storage.googleapis.com/tfjs-models/tfjs/mobilenet_v2_1.0_224/';
+  const base = 'https://storage.googleapis.com/tfjs-models/savedmodel/mobilenet_v2_1.0_224/';
   const outDir = path.join(OUT, 'mobilenet');
   const modelJson = path.join(outDir, 'model.json');
   if (fs.existsSync(modelJson)) {
