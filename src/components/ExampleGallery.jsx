@@ -6,7 +6,10 @@ import React, { useEffect, useState } from 'react';
 const ALL = '__ALL__';
 
 export default function ExampleGallery({ open, onClose, onLoad }) {
-  const examples = (typeof window !== 'undefined' && window.BlockPyExamples) || [];
+  // 두 소스를 합쳐 읽는다: 인라인 스니펫(BlockPyExamples) + 파일 서빙 수업 예제(BlockPyLessonExamples).
+  const inlineExamples = (typeof window !== 'undefined' && window.BlockPyExamples) || [];
+  const lessonExamples = (typeof window !== 'undefined' && window.BlockPyLessonExamples) || [];
+  const examples = [...inlineExamples, ...lessonExamples];
   const [activeCategory, setActiveCategory] = useState(ALL);
 
   // Esc로 닫기 — 열려 있을 때만 리스너 부착.
@@ -75,7 +78,7 @@ export default function ExampleGallery({ open, onClose, onLoad }) {
                     <span className="example-card-title">{s.title}</span>
                     <span className="example-card-badge">{s.category}</span>
                   </div>
-                  <pre className="example-card-code">{preview(s.code)}</pre>
+                  <pre className="example-card-code">{s.preview || preview(s.code)}</pre>
                   <span className="example-card-load"><i className="fa-solid fa-download"></i> 불러오기</span>
                 </div>
               ))}

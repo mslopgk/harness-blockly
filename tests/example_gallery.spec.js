@@ -11,7 +11,10 @@ test.describe('Example Gallery', () => {
       () => !!(window.__blocklyWorkspace && window.BlockPyExamples && window.BlockPyAstBridge),
       null, { timeout: 60000 },
     );
-    const total = await page.evaluate(() => window.BlockPyExamples.length);
+    // 갤러리는 인라인 스니펫 + 파일 서빙 수업 예제를 합쳐 보여준다 → 전체 카드 수는 두 소스 합계.
+    const total = await page.evaluate(
+      () => window.BlockPyExamples.length + (window.BlockPyLessonExamples ? window.BlockPyLessonExamples.length : 0),
+    );
     expect(total).toBeGreaterThan(0);
 
     // 1) 버튼으로 모달 열기

@@ -27,6 +27,7 @@ import './utils/irBlocks.js';
 import './utils/irToolbox.js';   // builds window.BlockPyIrToolbox (load-order only matters for the live coverage test, which compares against the irBlocks.js registry)
 import './utils/teachable.js'; // window.BlockPyTM (Teachable Machine) 노출
 import './examples/snippets.js';
+import './examples/lessons.js';  // window.BlockPyLessonExamples (강의자료 수업 예제 — 파일 서빙)
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

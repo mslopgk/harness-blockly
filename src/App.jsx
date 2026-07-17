@@ -688,8 +688,30 @@ for i in range(4):
   // 예제 갤러리/드롭다운 공유 로드 경로. loadDemoScript와 동일한 안전 패턴:
   // 코드+desugar 세팅 → 파이썬 화면 전환 → 지연 변환(세대 가드가 중복/경합 안전 처리).
   // latestCodeRef 가드: 지연 창 안에 사용자가 코드를 바꾸면 덮어쓰지 않는다.
-  const loadExampleSnippet = (sn) => {
-    if (!sn || typeof sn.code !== 'string') return;
+  const loadExampleSnippet = async (sn) => {
+    if (!sn) return;
+    // 파일 기반 수업 예제(강의자료): public/examples 에서 지연 fetch 한다. 수천 줄짜리 대용량이라
+    // 로드 시 자동 블록 변환은 하지 않는다(변환은 상단 Convert 버튼으로 수동). shouldDesugar 를
+    // 건드리지 않아 그 effect가 대용량 자동 변환을 유발하는 것도 막는다.
+    if (sn.file) {
+      setShowExamples(false);
+      setActiveEditorTab('python');
+      setLogs([`[Examples] "${sn.title}" 불러오는 중…`]);
+      try {
+        const r = await fetch('/examples/' + encodeURIComponent(sn.file));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const text = await r.text();
+        latestCodeRef.current = text;
+        setCode(text);
+        setHighlightedLine(null);
+        setLogs([`[Examples] "${sn.title}" 예제를 불러왔습니다. (대용량 — 블록 변환은 상단 Convert 버튼으로 수동 실행하세요)`]);
+      } catch (e) {
+        setLogs((prev) => [...prev, `[Examples] "${sn.title}" 불러오기 실패: ${e.message}. (npm run dev 서버 확인)`]);
+      }
+      return;
+    }
+    // 인라인 스니펫: 코드 로드 + 자동 변환(loadDemoScript와 동일한 안전 패턴).
+    if (typeof sn.code !== 'string') return;
     setShouldDesugar(!!sn.desugar);
     latestCodeRef.current = sn.code;
     setCode(sn.code);
@@ -1557,7 +1579,7 @@ for i in range(4):
                 >
                   <i className="fa-solid fa-stop"></i>
                 </button>
-                {(typeof window !== 'undefined' && window.BlockPyExamples && window.BlockPyExamples.length > 0) && (
+                {(typeof window !== 'undefined' && ((window.BlockPyExamples && window.BlockPyExamples.length > 0) || (window.BlockPyLessonExamples && window.BlockPyLessonExamples.length > 0))) && (
                   <button
                     className="btn btn-secondary btn-sm"
                     id="btn-examples"
