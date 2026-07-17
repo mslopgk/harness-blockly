@@ -1948,23 +1948,8 @@ select:focus, .pip-input:focus {
 }
 .lib-row-del:hover { background: #e8483c; color: #fff; }
 
-/* ─── Example gallery modal (상단 '예제' 버튼) ───────────────────────────────── */
-.example-gallery-overlay {
-  position: fixed; inset: 0; z-index: 9999;
-  background: rgba(20,20,19,0.55); backdrop-filter: blur(2px);
-  display: flex; align-items: center; justify-content: center;
-}
-.example-gallery-box {
-  background: var(--bg-card); border: 1px solid var(--hairline);
-  border-radius: 12px; padding: 14px 16px; width: min(880px, 88vw); max-height: 82vh;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.35); display: flex; flex-direction: column;
-}
-.example-gallery-head {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  font-size: 0.95rem; font-weight: 600; color: var(--text-primary);
-  margin-bottom: 10px; padding: 2px;
-}
-.example-gallery-head i { color: var(--coral); margin-right: 6px; }
+/* ─── Example gallery (좌측 '예제' 보조 탭) ──────────────────────────────────── */
+.examples-tab-scroll { padding: 10px 12px; }
 .example-empty { color: var(--text-muted); font-size: 0.85rem; padding: 24px; text-align: center; }
 .example-cat-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .example-cat-chip {
@@ -1976,8 +1961,8 @@ select:focus, .pip-input:focus {
 .example-cat-chip:hover { border-color: var(--coral); }
 .example-cat-chip.active { background: var(--coral); color: #fff; border-color: var(--coral); }
 .example-card-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 10px; overflow-y: auto; padding: 2px; align-content: start;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 10px; padding: 2px; align-content: start;
 }
 .example-card {
   display: flex; flex-direction: column; gap: 8px; text-align: left;

@@ -8,7 +8,7 @@
 // 원본: busan-robotics/강의자료개발/수업_*/소스코드/*_standalone.py (자동 mock 내장 —
 // 하드웨어/API 키가 없어도 실행된다). 각 항목의 `file` 은 public/examples/ 아래 경로.
 //
-// snippets.js 와 동일하게 window 전역으로 노출한다(ExampleGallery 가 두 소스를 합쳐 읽음).
+// snippets.js 와 동일하게 window 전역으로 노출한다(ExampleGalleryContent 가 두 소스를 합쳐 읽음).
 
 const LESSON_EXAMPLES = [
   {

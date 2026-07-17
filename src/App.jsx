@@ -9,7 +9,7 @@ import LibraryManager from './components/LibraryManager';
 import RobotConnect from './components/RobotConnect';
 import RobotCalibrate from './components/RobotCalibrate';
 import TeachableMachine from './components/TeachableMachine';
-import ExampleGallery from './components/ExampleGallery';
+import ExampleGalleryContent from './components/ExampleGalleryContent';
 import { interruptPyodide, prewarmEnvironment, writeImageToFS } from './utils/pyodideRunner';
 import stdlibSpecs from './data/stdlibSpecs.json';
 
@@ -34,7 +34,6 @@ export default function App() {
   const [activeFile, setActiveFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null); // { name, url } | null
   const [fsReload, setFsReload] = useState(0);
-  const [showExamples, setShowExamples] = useState(false);
 
   // OpenCV image output (from real cv2.imshow) + uploaded image name
   const [cv2Images, setCv2Images] = useState([]);
@@ -694,7 +693,6 @@ for i in range(4):
     // 로드 시 자동 블록 변환은 하지 않는다(변환은 상단 Convert 버튼으로 수동). shouldDesugar 를
     // 건드리지 않아 그 effect가 대용량 자동 변환을 유발하는 것도 막는다.
     if (sn.file) {
-      setShowExamples(false);
       setActiveEditorTab('python');
       setLogs([`[Examples] "${sn.title}" 불러오는 중…`]);
       try {
@@ -717,7 +715,6 @@ for i in range(4):
     setCode(sn.code);
     setHighlightedLine(null);
     setActiveEditorTab('python');
-    setShowExamples(false);
     setLogs([`[Examples] "${sn.title}" 예제를 불러왔습니다.`]);
     setTimeout(() => {
       if (latestCodeRef.current === sn.code) syncCodeToBlocks(sn.code);
@@ -1435,6 +1432,14 @@ for i in range(4):
               >
                 TM
               </button>
+              <button
+                id="tab-btn-examples"
+                className={`tab-btn ${activeAuxTab === 'examples' ? 'active' : ''}`}
+                onClick={() => setActiveAuxTab('examples')}
+                title="예제 코드 불러오기 (기초·데이터·OpenCV·수업 등)"
+              >
+                예제
+              </button>
             </div>
             <div className="tab-content-wrapper">
               {activeAuxTab === 'files' && (
@@ -1484,6 +1489,11 @@ for i in range(4):
               {activeAuxTab === 'tm' && (
                 <div className="tm-tab-scroll" style={{ overflowY: 'auto', height: '100%' }}>
                   <TeachableMachine />
+                </div>
+              )}
+              {activeAuxTab === 'examples' && (
+                <div className="examples-tab-scroll" style={{ overflowY: 'auto', height: '100%' }}>
+                  <ExampleGalleryContent onLoad={loadExampleSnippet} />
                 </div>
               )}
               {activeAuxTab === 'gray' && (
@@ -1583,8 +1593,8 @@ for i in range(4):
                   <button
                     className="btn btn-secondary btn-sm"
                     id="btn-examples"
-                    onClick={() => setShowExamples(true)}
-                    title="예제 코드 갤러리 열기"
+                    onClick={() => setActiveAuxTab('examples')}
+                    title="예제 탭 열기 (좌측 패널)"
                   >
                     <i className="fa-solid fa-book-open"></i> 예제
                   </button>
@@ -1694,11 +1704,6 @@ for i in range(4):
         </div>
       )}
 
-      <ExampleGallery
-        open={showExamples}
-        onClose={() => setShowExamples(false)}
-        onLoad={loadExampleSnippet}
-      />
     </div>
   );
 }
