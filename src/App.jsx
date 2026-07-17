@@ -8,6 +8,7 @@ import ASTTreeView from './components/ASTTreeView';
 import LibraryManager from './components/LibraryManager';
 import RobotConnect from './components/RobotConnect';
 import RobotCalibrate from './components/RobotCalibrate';
+import TeachableMachine from './components/TeachableMachine';
 import { interruptPyodide, prewarmEnvironment, writeImageToFS } from './utils/pyodideRunner';
 import stdlibSpecs from './data/stdlibSpecs.json';
 
@@ -1386,6 +1387,13 @@ for i in range(4):
               >
                 Robot
               </button>
+              <button
+                id="tab-btn-tm"
+                className={`tab-btn ${activeAuxTab === 'tm' ? 'active' : ''}`}
+                onClick={() => setActiveAuxTab('tm')}
+              >
+                TM
+              </button>
             </div>
             <div className="tab-content-wrapper">
               {activeAuxTab === 'files' && (
@@ -1430,6 +1438,11 @@ for i in range(4):
                 <div className="robot-tab-scroll" style={{ overflowY: 'auto', height: '100%' }}>
                   <RobotConnect />
                   <RobotCalibrate />
+                </div>
+              )}
+              {activeAuxTab === 'tm' && (
+                <div className="tm-tab-scroll" style={{ overflowY: 'auto', height: '100%' }}>
+                  <TeachableMachine />
                 </div>
               )}
               {activeAuxTab === 'gray' && (
