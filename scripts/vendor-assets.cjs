@@ -85,5 +85,44 @@ for (const [from, to] of DIRS) {
   copied++;
 }
 
-console.log(`[vendor] copied ${copied} item(s) into public/vendor${missing ? `, ${missing} missing` : ''}`);
-if (missing) process.exitCode = 0; // non-fatal: build can still proceed (CDN fallback at runtime)
+// ─── MobileNet v2 (Teachable Machine 임베딩 추출기) 오프라인 vendoring ──────────
+// @tensorflow-models/mobilenet 은 기본적으로 storage.googleapis.com 에서 가중치를
+// 내려받는다(온라인 전용). 오프라인 구동을 위해 model.json + weight shard 들을
+// public/vendor/mobilenet 으로 한 번 복사해 둔다. 존재하면 skip, 오프라인이면 경고만.
+async function vendorMobileNet() {
+  const base = 'https://storage.googleapis.com/tfjs-models/tfjs/mobilenet_v2_1.0_224/';
+  const outDir = path.join(OUT, 'mobilenet');
+  const modelJson = path.join(outDir, 'model.json');
+  if (fs.existsSync(modelJson)) {
+    console.log('[vendor] mobilenet: already present, skipped');
+    return;
+  }
+  if (typeof fetch !== 'function') {
+    console.warn('[vendor] mobilenet: global fetch 없음(Node<18) — 건너뜀. 온라인 Node18+ 에서 `npm run vendor` 재실행 필요');
+    return;
+  }
+  try {
+    fs.mkdirSync(outDir, { recursive: true });
+    const mjRes = await fetch(base + 'model.json');
+    if (!mjRes.ok) throw new Error('model.json HTTP ' + mjRes.status);
+    const mjText = await mjRes.text();
+    fs.writeFileSync(modelJson, mjText, 'utf8');
+    const manifest = JSON.parse(mjText).weightsManifest || [];
+    const shards = manifest.flatMap((g) => g.paths || []);
+    for (const shard of shards) {
+      const r = await fetch(base + shard);
+      if (!r.ok) throw new Error(shard + ' HTTP ' + r.status);
+      const buf = Buffer.from(await r.arrayBuffer());
+      fs.writeFileSync(path.join(outDir, shard), buf);
+    }
+    console.log(`[vendor] mobilenet: downloaded model.json + ${shards.length} shard(s)`);
+  } catch (e) {
+    console.warn('[vendor] mobilenet: 다운로드 실패(오프라인?) — TM 학습은 온라인에서 `npm run vendor` 후 가능:', e.message);
+  }
+}
+
+(async () => {
+  await vendorMobileNet();
+  console.log(`[vendor] copied ${copied} item(s) into public/vendor${missing ? `, ${missing} missing` : ''}`);
+  if (missing) process.exitCode = 0; // non-fatal: build can still proceed (CDN fallback at runtime)
+})();
