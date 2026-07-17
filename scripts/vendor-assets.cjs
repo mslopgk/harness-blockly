@@ -103,10 +103,13 @@ async function vendorMobileNet() {
   }
   try {
     fs.mkdirSync(outDir, { recursive: true });
+    // model.json is written LAST (see below) so it doubles as a completeness sentinel:
+    // the top guard above only sees "already present" once every shard is on disk too.
+    // An interrupted run (crash/network drop mid-shard) leaves no model.json, so the
+    // next `npm run vendor` retries cleanly instead of getting stuck "skipped" forever.
     const mjRes = await fetch(base + 'model.json');
     if (!mjRes.ok) throw new Error('model.json HTTP ' + mjRes.status);
     const mjText = await mjRes.text();
-    fs.writeFileSync(modelJson, mjText, 'utf8');
     const manifest = JSON.parse(mjText).weightsManifest || [];
     const shards = manifest.flatMap((g) => g.paths || []);
     for (const shard of shards) {
@@ -115,6 +118,7 @@ async function vendorMobileNet() {
       const buf = Buffer.from(await r.arrayBuffer());
       fs.writeFileSync(path.join(outDir, shard), buf);
     }
+    fs.writeFileSync(modelJson, mjText, 'utf8');
     console.log(`[vendor] mobilenet: downloaded model.json + ${shards.length} shard(s)`);
   } catch (e) {
     console.warn('[vendor] mobilenet: 다운로드 실패(오프라인?) — TM 학습은 온라인에서 `npm run vendor` 후 가능:', e.message);
