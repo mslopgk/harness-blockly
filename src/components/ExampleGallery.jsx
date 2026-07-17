@@ -35,7 +35,7 @@ export default function ExampleGallery({ open, onClose, onLoad }) {
 
   return (
     <div className="example-gallery-overlay" onClick={() => onClose && onClose()}>
-      <div className="example-gallery-box" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="예제 갤러리">
+      <div className="example-gallery-box" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="예제 갤러리">
         <div className="example-gallery-head">
           <span><i className="fa-solid fa-book-open"></i> 예제 불러오기</span>
           <button className="btn btn-secondary btn-xs" id="example-gallery-close" onClick={() => onClose && onClose()}>✕</button>
