@@ -196,15 +196,23 @@ export default function TeachableMachine() {
       <div style={{ fontWeight: 600 }}>Teachable Machine</div>
       <div id="tm-status" style={{ fontSize: 13, opacity: 0.85 }}>{status}</div>
 
-      {/* 웹캠 미리보기 */}
+      {/* 웹캠 미리보기 — 박스는 mode 와 무관하게 항상 같은 크기로 렌더링한다.
+          (이전엔 display:none↔block 로 토글해서 idle→collecting 전환 시 박스가 나타나며
+          아래 클래스 목록/캡처 버튼을 밀어냈다 — 누르고 있던 버튼이 커서 밑에서 빠져나가
+          mouseleave 로 캡처가 즉시 끊기는 버그였다. 박스 높이를 고정해 해결.) */}
       {camError ? (
         <div id="tm-cam-error" style={{ color: '#c0392b', fontSize: 13 }}>{camError}</div>
       ) : (
         <div
           id="tm-webcam-wrap"
-          style={{ position: 'relative', width: '100%', maxWidth: 320, aspectRatio: '4 / 3', background: '#000', borderRadius: 6, overflow: 'hidden', display: camActive ? 'block' : 'none' }}
+          style={{ position: 'relative', width: '100%', maxWidth: 320, aspectRatio: '4 / 3', background: '#000', borderRadius: 6, overflow: 'hidden' }}
         >
-          <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+          <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'contain', display: camActive ? 'block' : 'none' }} />
+          {!camActive && (
+            <div id="tm-webcam-placeholder" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
+              카메라 미리보기
+            </div>
+          )}
           {mode === 'trained' && preview && (
             <div id="tm-preview-overlay" style={{ position: 'absolute', left: 8, bottom: 8, background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '4px 8px', borderRadius: 6, fontSize: 13 }}>
               <span id="tm-preview-label">{preview.label}</span> · {(preview.confidence * 100).toFixed(0)}%
