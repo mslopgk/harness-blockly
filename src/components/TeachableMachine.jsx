@@ -27,8 +27,25 @@ export default function TeachableMachine() {
   const headRef = useRef(null);
   const captureTimer = useRef(null);
   const previewRAF = useRef(null);
+  const classesRef = useRef(classes);
 
   const camActive = mode === 'collecting' || mode === 'trained';
+
+  // classesRef 는 매 렌더 최신 classes 를 반영(언마운트 정리 시 최신 상태를 읽기 위함).
+  useEffect(() => {
+    classesRef.current = classes;
+  });
+
+  // 언마운트 시: 진행 중인 캡처 타이머 정리(누르는 도중 탭 전환 등으로 언마운트되는 경우 대비).
+  useEffect(() => () => {
+    if (captureTimer.current) clearInterval(captureTimer.current);
+  }, []);
+
+  // 언마운트 시: 수집된 샘플 텐서 + 학습된 head 모델 dispose(TF.js 메모리 누수 방지).
+  useEffect(() => () => {
+    classesRef.current.forEach((c) => c.samples.forEach((t) => { try { t.dispose(); } catch (_) {} }));
+    if (headRef.current) { try { headRef.current.dispose(); } catch (_) {} }
+  }, []);
 
   // ── 웹캠: 수집/미리보기 중에만 켠다 ──
   useEffect(() => {
@@ -110,6 +127,7 @@ export default function TeachableMachine() {
         epochs,
         onEpoch: (e) => setStatus(`학습 중… epoch ${e + 1}/${epochs}`),
       });
+      if (headRef.current) { headRef.current.dispose(); }
       headRef.current = head;
       setTrainedInfo({ epochs });
       setMode('trained');
