@@ -58,4 +58,21 @@ test.describe('Teachable Machine core (teachable+tmPack)', () => {
 
     expect(shape).toEqual([1, 4]);
   });
+
+  test('오프라인 자산 누락 시 featurize 가 친절한 에러로 실패한다(fail-loud)', async ({ page }) => {
+    // 벤더된 MobileNet model.json 요청을 404 로 막아 "자산 없음" 상황을 결정적으로 재현.
+    await page.route('**/vendor/mobilenet/model.json', (route) => route.fulfill({ status: 404, body: 'not found' }));
+    await page.goto('/');
+    await expect.poll(async () => page.evaluate(() => !!window.BlockPyTM), { timeout: 30000 }).toBe(true);
+    const err = await page.evaluate(async () => {
+      try {
+        await window.BlockPyTM.featurize(document.createElement('canvas'));
+        return null;
+      } catch (e) {
+        return String((e && e.message) || e);
+      }
+    });
+    expect(err).toBeTruthy();
+    expect(err).toMatch(/vendor|MobileNet/i);
+  });
 });

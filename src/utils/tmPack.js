@@ -34,6 +34,7 @@ function packEnvelope({ labels, imageSize, base, artifacts }) {
   if (!Array.isArray(labels) || labels.length < 2) {
     throw new Error('라벨(클래스)은 2개 이상이어야 저장할 수 있습니다.');
   }
+  if (!artifacts) throw new Error('head 아티팩트(모델 가중치)가 필요합니다.');
   return JSON.stringify({
     format: FORMAT,
     labels,

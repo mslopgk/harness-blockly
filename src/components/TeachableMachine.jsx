@@ -118,9 +118,10 @@ export default function TeachableMachine() {
     stopCapture();
     setMode('training');
     setStatus('학습 중…');
+    let head = null;
     try {
       const inputDim = classes[0].samples[0].shape[1];
-      const head = await buildHead(inputDim, classes.length);
+      head = await buildHead(inputDim, classes.length);
       const samples = classes.flatMap((c, ci) => c.samples.map((embedding) => ({ classIndex: ci, embedding })));
       const epochs = 20;
       await trainHead(head, samples, classes.length, {
@@ -133,6 +134,7 @@ export default function TeachableMachine() {
       setMode('trained');
       setStatus('학습 완료 — 카메라로 실시간 예측을 확인하세요.');
     } catch (e) {
+      if (head) { try { head.dispose(); } catch (_) {} }
       setMode('idle');
       setStatus('학습 실패: ' + (e.message || e));
     }

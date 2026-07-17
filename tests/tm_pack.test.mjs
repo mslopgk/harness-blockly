@@ -27,6 +27,7 @@ test('packEnvelope/unpackEnvelope 는 labels·base·imageSize·가중치를 보�
   assert.equal(back.imageSize, 224);
   assert.equal(back.base, 'mobilenet-v2');
   assert.deepEqual(back.artifacts.modelTopology, { a: 1 });
+  assert.deepEqual(back.artifacts.weightSpecs, artifacts.weightSpecs);
   assert.deepEqual([...new Uint8Array(back.artifacts.weightData)], [10, 20, 30, 40]);
 });
 
@@ -39,4 +40,8 @@ test('packEnvelope 는 라벨 2개 미만을 거부한다', () => {
 
 test('unpackEnvelope 는 알 수 없는 format 을 거부한다', () => {
   assert.throws(() => unpackEnvelope(JSON.stringify({ format: 'nope' })), /형식/);
+});
+
+test('packEnvelope 는 artifacts 누락을 거부한다', () => {
+  assert.throws(() => packEnvelope({ labels: ['a', 'b'], imageSize: 224, base: 'x' }), /아티팩트/);
 });
