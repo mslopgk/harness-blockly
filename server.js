@@ -46,6 +46,8 @@ const WORKSPACE_DIR = process.env.BLOCKPY_WORKSPACE || path.join(os.homedir(), '
 try { fs.mkdirSync(WORKSPACE_DIR, { recursive: true }); } catch (_) {}
 // MEDIA_DIR kept as an alias for existing call sites (uploads, seed images, run cwd).
 const MEDIA_DIR = WORKSPACE_DIR;
+// Platform runtime modules importable from any workspace (e.g. `import tm`) — put on PYTHONPATH.
+const RUNTIME_DIR = path.join(__dirname, 'runtime');
 
 // Resolve a client-supplied relative path INSIDE the workspace, rejecting traversal/absolute
 // escapes. Returns the absolute path, or null if it would leave the workspace.
@@ -619,7 +621,12 @@ app.post('/api/run-python', (req, res) => {
   try {
     child = spawn(PYTHON_CMD, ['-u', file], {
       cwd: MEDIA_DIR, // so cv2.imread('name.jpg') finds uploaded/sample images
-      env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1' },
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUNBUFFERED: '1',
+        PYTHONPATH: [RUNTIME_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
+      },
     });
   } catch (e) {
     res.write(`[shell error] could not start "${PYTHON_CMD}": ${e.message}\n`);
