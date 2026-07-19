@@ -692,6 +692,59 @@ app.post('/api/pip-install', (req, res) => {
   res.on('close', () => { if (!done && !res.writableEnded && child && !child.killed) { try { child.kill(); } catch (_) {} } });
 });
 
+// ─── Robot (Dobot) bridge: DobotLink-mediated arm/car via dobotkit ─────────────
+// Each call spawns scripts/robot_bridge.py with a JSON command on stdin; the script does ONE
+// dobotkit action against DobotLink (ws://localhost:9090) and prints a JSON result. Stateless per
+// call (DobotLink holds the hardware). Requires DobotLink.exe running + dobotkit installed in
+// PYTHON_CMD; both failures surface as {ok:false,error,hint} (HTTP 200 so the UI can show them).
+const ROBOT_BRIDGE = path.join(__dirname, 'scripts', 'robot_bridge.py');
+function runRobotBridge(command, res, timeoutMs) {
+  let child;
+  try {
+    child = spawn(PYTHON_CMD, [ROBOT_BRIDGE], { env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' } });
+  } catch (e) {
+    return res.json({ ok: false, error: `python 실행 실패: ${e.message}`, hint: 'PYTHON_CMD 확인' });
+  }
+  // Settle-once guard (as in /api/infer-types): 'error'/'close'/timeout race — exactly one reply.
+  let responded = false;
+  let timer = null;
+  const reply = (body) => {
+    if (responded) return;
+    responded = true;
+    clearTimeout(timer);
+    res.json(body);
+  };
+  timer = setTimeout(() => {
+    killTree(child);
+    reply({ ok: false, error: `로봇 브리지 시간초과(${timeoutMs}ms)`, hint: 'DobotLink 응답 없음 — DobotLink.exe/로봇 상태를 확인하세요.' });
+  }, timeoutMs);
+  let out = '';
+  child.stdout.on('data', (d) => { out += d; });
+  child.stderr.on('data', () => {}); // drain — an undrained pipe can deadlock the child
+  child.on('error', (e) => reply({ ok: false, error: `python 실행 오류: ${e.message}`, hint: 'PYTHON_CMD 확인' }));
+  child.on('close', () => { try { reply(JSON.parse(out.trim().split('\n').pop() || '')); } catch (_) { reply({ ok: false, error: '로봇 브리지 응답 파싱 실패', hint: (out || '').slice(0, 400) }); } });
+  try { child.stdin.write(JSON.stringify(command)); child.stdin.end(); } catch (_) { /* child died — 'close'/'error' handles it */ }
+}
+
+app.post('/api/robot/ports', (req, res) => {
+  const device = (req.body && req.body.device) === 'go' ? 'go' : 'lite';
+  runRobotBridge({ action: 'ports', device }, res, 15000);
+});
+app.post('/api/robot/connect', (req, res) => {
+  const b = req.body || {};
+  runRobotBridge({ action: 'connect', device: b.device === 'go' ? 'go' : 'lite', port: b.port || 'auto' }, res, 25000);
+});
+app.post('/api/robot/disconnect', (req, res) => {
+  const b = req.body || {};
+  runRobotBridge({ action: 'disconnect', device: b.device === 'go' ? 'go' : 'lite', port: b.port || 'auto' }, res, 15000);
+});
+app.post('/api/robot/move-preset', (req, res) => {
+  const b = req.body || {};
+  if (typeof b.x !== 'number' || typeof b.y !== 'number') return res.status(400).json({ ok: false, error: 'x, y (number) 필요' });
+  // Motion (optional home + move, wait-for-finish) can take a while → generous timeout.
+  runRobotBridge({ action: 'move_preset', device: 'lite', port: b.port || 'auto', x: b.x, y: b.y, z: (typeof b.z === 'number' ? b.z : undefined), home: !!b.home }, res, 60000);
+});
+
 // Save an uploaded image to the media dir so shell-run Python can cv2.imread() it.
 app.post('/api/upload-image', (req, res) => {
   const { filename, dataBase64 } = req.body || {};

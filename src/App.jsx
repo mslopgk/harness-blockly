@@ -34,6 +34,8 @@ export default function App() {
   const [activeFile, setActiveFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null); // { name, url } | null
   const [fsReload, setFsReload] = useState(0);
+  // 로봇 연결 상태(RobotConnect가 올려줌) — 캘리브레이션 이동이 같은 포트를 쓰도록 App에 보관.
+  const [robotConn, setRobotConn] = useState({ connected: false, device: 'lite', port: null });
 
   // OpenCV image output (from real cv2.imshow) + uploaded image name
   const [cv2Images, setCv2Images] = useState([]);
@@ -720,6 +722,23 @@ for i in range(4):
       if (latestCodeRef.current === sn.code) syncCodeToBlocks(sn.code);
     }, 100);
   };
+
+  // 캘리브레이션 이동: 연결된 팔(lite)을 알려진 (x,y) 프리셋으로 절대 이동(백엔드 dobotkit).
+  // meta.first=true면 이동 전에 원점복귀(home). 팔 미연결이면 throw → RobotCalibrate가 advisory 처리.
+  const robotMoveToPreset = async (preset, meta = {}) => {
+    if (!robotConn.connected || robotConn.device !== 'lite' || !robotConn.port) {
+      throw new Error('팔(Magician Lite)이 연결되어 있지 않습니다');
+    }
+    const r = await fetch('/api/robot/move-preset', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ port: robotConn.port, x: preset[0], y: preset[1], home: !!meta.first }),
+    });
+    const j = await r.json().catch(() => ({ ok: false, error: '서버 응답 오류' }));
+    if (!j.ok) throw new Error((j.error || '이동 실패') + (j.hint ? ` — ${j.hint}` : ''));
+    return { moved: true };
+  };
+  // 팔이 연결됐을 때만 실이동 훅을 넘긴다(미연결 시 undefined → 캘리브레이션이 '로봇 미연결' 뱃지 표시).
+  const armWired = robotConn.connected && robotConn.device === 'lite';
 
   // ── Gray (raw) block inspector: collect the fallback blocks, jump to each ──────
   const refreshGrayBlocks = () => {
@@ -1482,8 +1501,8 @@ for i in range(4):
               )}
               {activeAuxTab === 'robot' && (
                 <div className="robot-tab-scroll" style={{ overflowY: 'auto', height: '100%' }}>
-                  <RobotConnect />
-                  <RobotCalibrate />
+                  <RobotConnect onConnectedChange={setRobotConn} />
+                  <RobotCalibrate onMoveToPreset={armWired ? robotMoveToPreset : undefined} />
                 </div>
               )}
               {activeAuxTab === 'tm' && (

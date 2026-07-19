@@ -32,9 +32,10 @@ function saveCalib(M, pairs) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, M, pairs }));
 }
 
-// 기본 스텁: dobotkit 미배선. 실제로 로봇을 움직이지 않고 즉시 반환한다.
-async function stubMove(preset) {
-  console.warn('[RobotCalibrate] onMoveToPreset 미연결 (dobotkit 대기):', preset);
+// 기본 스텁: 팔 미연결. 실제로 로봇을 움직이지 않고 즉시 반환한다.
+// onMoveToPreset(preset, meta) — meta.first=true면 이동 전에 원점복귀(홈).
+async function stubMove(preset, _meta) {
+  console.warn('[RobotCalibrate] onMoveToPreset 미연결 (팔 연결 대기):', preset);
   return { moved: false };
 }
 
@@ -90,7 +91,8 @@ export default function RobotCalibrate({ onMoveToPreset }) {
     setError('');
     setStepIndex(0);
     setMode('capturing');
-    try { await move(PRESETS[0]); } catch (_) { /* 이동 실패는 진행을 막지 않음(advisory) */ }
+    // 첫 프리셋: home=true (원점복귀 후 이동)로 절대좌표 신뢰성 확보.
+    try { await move(PRESETS[0], { first: true }); } catch (_) { /* 이동 실패는 진행을 막지 않음(advisory) */ }
   }, [move]);
 
   const cancel = useCallback(() => {
@@ -130,7 +132,7 @@ export default function RobotCalibrate({ onMoveToPreset }) {
     const nextIndex = stepIndex + 1;
     if (nextIndex < PRESETS.length) {
       setStepIndex(nextIndex);
-      try { await move(PRESETS[nextIndex]); } catch (_) { /* advisory */ }
+      try { await move(PRESETS[nextIndex], { first: false }); } catch (_) { /* advisory */ }
     } else {
       // 마지막 점 → 풀이
       try {
