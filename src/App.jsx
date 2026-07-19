@@ -12,6 +12,7 @@ import TeachableMachine from './components/TeachableMachine';
 import ExampleGalleryContent from './components/ExampleGalleryContent';
 import { interruptPyodide, prewarmEnvironment, writeImageToFS } from './utils/pyodideRunner';
 import stdlibSpecs from './data/stdlibSpecs.json';
+import robotSpecs from './data/robotSpecs.json';
 
 // A pip PACKAGE name is not always the IMPORT name (opencv-python→cv2, pillow→PIL, …). Map the
 // common mismatches; default = the package lowercased with '-' → '_' (pydobot→pydobot, scikit→…).
@@ -498,8 +499,14 @@ export default function App() {
       // scripts/gen-stdlib-blocks.cjs — cv2's hand-authored signatures live there, replacing the old
       // AI_PRESETS table, since opencv's C functions expose no introspectable signature).
       const imp = window.BlockPyLibImport;
-      if (imp && Array.isArray(stdlibSpecs)) {
-        for (const spec of stdlibSpecs) {
+      // 번들 built-in 스펙: 파이썬 stdlib/cv2(stdlibSpecs) + dobotkit 로봇 블록(robotSpecs).
+      // 둘 다 builtin 등록 → 항상 존재, 사용자 삭제 불가, localStorage 미저장.
+      const bundledSpecs = [
+        ...(Array.isArray(stdlibSpecs) ? stdlibSpecs : []),
+        ...(Array.isArray(robotSpecs) ? robotSpecs : []),
+      ];
+      if (imp) {
+        for (const spec of bundledSpecs) {
           for (const s of imp.librarySpecToRegistrySpecs(spec, { both: false }).specs) {
             const res = reg.registerLibBlock({ ...s, builtin: true });
             if (res.ok && !installed.some((e) => e.type === res.type)) {
