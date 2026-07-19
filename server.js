@@ -741,8 +741,12 @@ app.post('/api/robot/disconnect', (req, res) => {
 app.post('/api/robot/move-preset', (req, res) => {
   const b = req.body || {};
   if (typeof b.x !== 'number' || typeof b.y !== 'number') return res.status(400).json({ ok: false, error: 'x, y (number) 필요' });
-  // Motion (optional home + move, wait-for-finish) can take a while → generous timeout.
-  runRobotBridge({ action: 'move_preset', device: 'lite', port: b.port || 'auto', x: b.x, y: b.y, z: (typeof b.z === 'number' ? b.z : undefined), home: !!b.home }, res, 60000);
+  // Motion (optional home + move, wait-for-finish) can take a while. This MUST exceed the bridge's
+  // own sequential RPC deadlines (connect+queue+home+move+pose ≈ up to ~110s) so a slow-but-legit
+  // home surfaces as a clean {ok:false} DobotTimeoutError from dobotkit instead of the server
+  // killTree-ing python mid-motion (which would leave the queued move running while the UI shows a
+  // false timeout). 120s > that sum.
+  runRobotBridge({ action: 'move_preset', device: 'lite', port: b.port || 'auto', x: b.x, y: b.y, z: (typeof b.z === 'number' ? b.z : undefined), home: !!b.home }, res, 120000);
 });
 
 // Save an uploaded image to the media dir so shell-run Python can cv2.imread() it.

@@ -153,6 +153,11 @@ def main() -> int:
                 _connect_tolerant(arm.cmds.connect)
                 arm.cmds.queue_clear()
                 arm.cmds.queue_start()
+                # 미검증 모션 경로 — 보수적(느린) 속도로 첫 실기 이동을 안전하게. 필요 시 조정.
+                try:
+                    arm.set_speed(50, 50)
+                except Exception:  # noqa: BLE001 - 속도 설정 실패가 이동을 막지 않도록
+                    pass
                 if req.get("home"):
                     arm.home(wait=True)
                 arm.move_to(x, y, z, wait=True)

@@ -13,7 +13,13 @@ const DEVICES = [
 ];
 
 async function postJson(url, body) {
-  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  let r;
+  try {
+    r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  } catch (e) {
+    // 네트워크 계층 거부(백엔드 다운 등) — 버튼이 잠기지 않도록 항상 객체 반환.
+    return { ok: false, error: `서버에 연결할 수 없습니다 (${e.message || e}). npm run server 확인.` };
+  }
   try { return await r.json(); } catch (_) { return { ok: false, error: `서버 응답 오류 (${r.status})` }; }
 }
 
