@@ -1,132 +1,119 @@
-# Teachable Machine 파이썬 런타임 + 고정 블록 — 설계
+# Teachable Machine 파이썬 런타임 + 고정 블록 — 설계 (옵션 B: 파이썬 네이티브)
 
-**작성일:** 2026-07-19
-**롤백 앵커:** `feat/dobotkit-blocks`(B만 제거) / `robot-wiring`(A+B 제거). 작업 브랜치 `feat/tm-runtime-blocks`(dobotkit 위에 스택).
+**작성일:** 2026-07-19 (개정: 패리티 게이트 실패로 "브라우저 모델 재사용"→"파이썬 자체 학습"으로 전환)
+**롤백 앵커:** `feat/dobotkit-blocks`(B만 제거) / `robot-wiring`(A+B 제거). 작업 브랜치 `feat/tm-runtime-blocks`.
+
+## 결정 배경 (왜 옵션 B)
+
+당초 "브라우저 TM 패널에서 학습한 모델을 파이썬에서 재사용"을 목표했으나, **패리티 게이트에서
+탈락**: 브라우저는 TF-Slim MobilenetV2(임베딩=`MobilenetV2/Logits/AvgPool`)를 쓰는데
+`keras.applications.MobileNetV2`와 **다른 체크포인트**라 같은 이미지 임베딩 코사인 유사도가 **0.79**
+(목표 >0.999). 정확 재사용은 벤더 tfjs 모델 변환이 필요하나 변환 툴(`tensorflowjs`)이 numpy 2.x와
+비호환 → 빌드 복잡성·툴체인 취약성 큼. **사용자 결정: 파이썬에서 자체 학습(옵션 B)로 전환.**
 
 ## 목표 (Goal)
 
-부산과학관 AI·로보틱스 커리큘럼에서, **브라우저 TM 패널로 학습·저장한 이미지 분류 모델**
-(`blockpy-tm-v1`)을 **파이썬에서 로드해 실제 추론**한다. 블록으로 짜서 Run하면 백엔드 실제
-파이썬이 예측하고, 그 결과로 dobotkit 로봇을 제어할 수 있다. "블록 A = 실제 실행되는 파이썬"
-원칙을 TM에도 성립시킨다.
+`tm` 파이썬 모듈이 **파이썬 안에서** 이미지 분류기를 **수집·학습·추론**한다(브라우저 TM 패널과 동일
+개념: MobileNet 특징 + 소형 head, 단 전 과정 파이썬). 블록으로 짜서 Run하면 실제 파이썬이 학습·예측하고
+그 결과로 dobotkit 로봇을 제어한다. 학습·추론이 **같은 파이썬 featurizer**를 쓰므로 자기일관적 —
+크로스-환경 패리티·모델 변환 불필요.
 
 ## 비목표 (Non-goals)
 
-- 파이썬에서의 **학습** — 안 함(학습은 브라우저 TM 패널이 담당; 파이썬은 추론 전용).
-- 카메라 헬퍼 — 안 함(프레임은 기존 cv2 블록으로 캡처; `frame`은 numpy 이미지).
-- 변환 코어(irToBlockly/blocklyToIr/irBlocks) 수정 — 안 함.
-- TM 패널 UI 변경 — 안 함(저장은 이미 `/api/fs/file`로 워크스페이스에 씀).
-
-## 배경: 모델 봉투(`blockpy-tm-v1`)
-
-브라우저(`src/utils/teachable.js` + `tmPack.js`)가 저장하는 JSON:
-```
-{ format:'blockpy-tm-v1', labels:[…], imageSize:224, base:'mobilenet-v2',
-  head:{ modelTopology, weightSpecs, weightData(base64) } }
-```
-- **base:** MobileNet v2(alpha 1.0)를 **특징추출기**로만 사용(브라우저는 `@tensorflow-models/mobilenet`
-  `infer(img, embedding=true)` → 1280차원 임베딩). 저장 안 됨(런타임 재사용).
-- **head:** 고정 2층 분류기 `dense(100, relu) → dense(N, softmax)`(입력 1280). tfjs LayersModel로
-  직렬화되어 있으나 **아키텍처가 고정**이라 파이썬에서 numpy로 그대로 재현 가능.
-- 저장 경로: TM 패널 "저장" → `POST /api/fs/file` → 워크스페이스 루트 `<이름>.json`. 워크스페이스는
-  Run 경로의 cwd이므로 파이썬이 상대경로로 바로 읽는다.
+- **브라우저 모델 재사용** — 안 함(패리티 실패로 폐기). 브라우저 TM 패널은 교육용 데모로 존치.
+- 카메라 헬퍼 — 안 함(frame은 기존 cv2 블록으로 캡처).
+- 변환 코어(irToBlockly/blocklyToIr/irBlocks)·TM 패널 UI·teachable.js/tmPack.js 수정 — 안 함.
 
 ## 아키텍처 (두 부분)
 
 ### ① 파이썬 `tm` 런타임 모듈 (신규, 핵심)
 
-플랫폼이 제공하는 `tm` 모듈(레포 `runtime/tm.py`). 공개 API:
+레포 `runtime/tm.py`. 커리큘럼 h3 `VisionPolicy`와 같은 API 형태:
 
-- `tm.load_model(path) -> Model`
-  - 워크스페이스의 봉투 JSON 로드, `format` 검증(아니면 친절한 오류).
-  - head 가중치를 weightSpecs/weightData(base64)에서 순서대로 4개 numpy 배열로 추출
-    (`W1[1280,100], b1[100], W2[100,N], b2[N]`), labels 보관.
-  - MobileNet base(특징추출기)를 준비(아래 featurizer). 프로세스 1회 로드 후 캐시.
-- `Model.predict(frame) -> (label:str, confidence:float)`
-  - `frame`(numpy uint8 HxWx3) → featurize → 1280 임베딩 → head(numpy: `relu(e@W1+b1)` →
-    `softmax(·@W2+b2)`) → argmax → (label, prob). 커리큘럼 h3의 `predict(frame)->(label,conf)`와 동일.
+- `tm.Model(labels: list[str]) -> Model` — 클래스 라벨로 빈 모델 생성.
+- `Model.add_example(frame, label) -> None` — 라벨된 프레임을 수집(MobileNet 임베딩으로 저장).
+- `Model.train() -> None` — 수집된 임베딩으로 소형 head 학습(dense(100,relu)→dense(N,softmax),
+  adam, sparse categorical CE, ~30 epochs). 각 클래스 1장 이상 필요, 아니면 friendly 오류.
+- `Model.predict(frame) -> (label:str, confidence:float)` — 커리큘럼 h3와 동일 시그니처.
 - `Model.predict_proba(frame) -> dict[str,float]` — 클래스별 확률.
 - `Model.labels -> list[str]` — 클래스 이름 목록(속성).
+- `Model.save(path) -> None` — 라벨 + head 가중치 4개(W1,b1,W2,b2)를 **npz**로 저장(워크스페이스).
+- `tm.load_model(path) -> Model` — npz 로드, head 재구성(학습 없이 바로 추론).
 
-`frame` 계약: numpy uint8 배열(H,W,3, RGB 또는 BGR — featurizer가 일관 처리). cv2로 캡처한
-프레임을 그대로 넘긴다.
+- **featurizer:** `keras.applications.MobileNetV2(input_shape=(224,224,3), alpha=1.0,
+  include_top=False, weights=<resolved>, pooling='avg')` → 1280차원. 전처리 `preprocess_input`
+  (=(x/127.5)−1), 프레임 224 리사이즈. base는 프로세스당 1회 로드·캐시. 학습·추론 동일 경로 → 일관.
+- **frame 계약:** numpy uint8 (H,W,3). cv2로 캡처(BGR)한 프레임을 featurizer가 RGB로 일관 변환.
+- **degrade:** tensorflow 미설치 시 명확한 안내(설치법) 오류.
 
 ### ② tm 고정 블록 (dobotkit과 동일 패턴)
 
 - `src/data/tmSpecs.json`(+`scripts/gen-tm-blocks.cjs`) = `{module:'tm', entries:[…]}`:
-  - `{kind:'function', name:'load_model', params:[path], returns:true}` → `tm.load_model(path)` 값
-  - `{kind:'method', owner:'Model', name:'predict', params:[frame], returns:true}` → `model.predict(frame)` 값
+  - `{kind:'class', name:'Model', params:[labels], returns:true}` → `tm.Model(labels)` 값
+  - `{kind:'method', owner:'Model', name:'add_example', params:[frame,label], returns:false}` → 명령
+  - `{kind:'method', owner:'Model', name:'train', returns:false}` → 명령
+  - `{kind:'method', owner:'Model', name:'predict', params:[frame], returns:true}` → 값
   - `{kind:'method', owner:'Model', name:'predict_proba', params:[frame], returns:true}` → 값
+  - `{kind:'method', owner:'Model', name:'save', params:[path], returns:false}` → 명령
   - `{kind:'property', owner:'Model', name:'labels'}` → `model.labels` 값 속성
-- `src/App.jsx` 마운트의 기존 `bundledSpecs` 배열(A에서 도입)에 `tmSpecs` 추가 → **"tm" 토크박스
-  카테고리** 자동 생성. Tier-A 스킨이라 무손실 라운드트립. 코어 불변.
-- 학생은 `import tm` + cv2로 프레임 캡처. 수신자 변수 기본 `model`.
-
-## Featurizer 와 패리티 게이트 (⚠️ 린치핀)
-
-브라우저 head는 **브라우저 MobileNet 임베딩** 위에서 학습됐다. 파이썬 예측이 맞으려면 파이썬
-featurizer가 **같은 이미지에 대해 같은 임베딩**을 내야 한다.
-
-- **1차 접근:** `tf.keras.applications.MobileNetV2(input_shape=(224,224,3), alpha=1.0,
-  include_top=False, weights='imagenet', pooling='avg')` → 1280차원. 전처리
-  `mobilenet_v2.preprocess_input`(= x/127.5 − 1)은 브라우저 `@tensorflow-models/mobilenet`
-  v2 전처리와 동일. 프레임은 224로 리사이즈.
-- **패리티 게이트(플랜 1번 태스크, 반드시 선통과):**
-  1. 결정적 테스트 이미지 N장에 대해 **브라우저 임베딩**(`window.BlockPyTM.featurize`)과 **파이썬
-     임베딩**을 비교 → 코사인 유사도 > 0.999(또는 정해진 허용오차).
-  2. **엔드투엔드:** 브라우저서 2클래스 미니 모델 학습·저장 → 파이썬 `load_model`+`predict`로
-     같은 이미지 예측 → 라벨 일치.
-- **폴백(게이트 실패 시):** 벤더된 그 tfjs GraphModel(`public/vendor/mobilenet/`)을 빌드 시 TF로
-  변환(예: `tfjs-graph-converter`)해 정확 일치하는 임베딩을 사용. 작업량 증가. 게이트 결과에 따라
-  플랜에서 분기.
-
-## 헬퍼 배치 (PYTHONPATH)
-
-- `tm.py`는 워크스페이스가 아니라 레포 `runtime/`에 둔다(워크스페이스 초기화·오염과 무관, 플랫폼과
-  함께 버전관리).
-- `server.js`의 run-python 서브프로세스 spawn env에 `PYTHONPATH`로 `runtime/`를 추가 → 어떤
-  워크스페이스에서든 `import tm` 가능. 데스크톱(python-embed)에서도 동일하게 실린다.
-- 의존성: `tensorflow`(확인 2.21.0), `numpy`(2.4.4) — 셋업 시 사전 설치. `tm.py`는 tensorflow
-  미설치 시 명확한 안내 메시지로 degrade(설치법 안내).
+  - `{kind:'function', name:'load_model', params:[path], returns:true}` → `tm.load_model(path)` 값
+- 수신자 변수 기본 `model`. `src/App.jsx`의 기존 `bundledSpecs`(A 도입)에 `tmSpecs` 추가 → **"tm"
+  토크박스 카테고리** 자동 생성. Tier-A 스킨 → 무손실 라운드트립. 코어 불변.
 
 ## 데이터 흐름 (Data flow)
 
-브라우저 학습 → 저장(`/api/fs/file` → 워크스페이스 `모델.json`) → 파이썬:
-`import tm` → `model = tm.load_model("모델.json")` → (cv2로 frame 캡처) →
-`label, conf = model.predict(frame)` → `if label == "왼쪽": car.spin(...)`(dobotkit).
+```python
+import tm, cv2
+model = tm.Model(["가위", "바위", "보"])
+model.add_example(frame, "가위")   # cv2로 프레임 캡처해 수집(여러 장)
+model.train()
+label, conf = model.predict(frame)
+model.save("가위바위보.npz")        # 다음엔: model = tm.load_model("가위바위보.npz")
+```
+워크스페이스가 Run cwd이므로 상대경로 저장/로드가 바로 동작.
+
+## 헬퍼 배치 & 의존성
+
+- `runtime/tm.py`. `server.js`의 run-python spawn env에 `PYTHONPATH += runtime` → 어떤 워크스페이스
+  에서든 `import tm`. 데스크톱(python-embed) 동일.
+- 의존성: `tensorflow`(2.21.0 확인), `numpy`(2.4.4 확인) — 사전 설치.
+- **MobileNet 가중치 전달:** keras `weights='imagenet'`는 `~/.keras`에 캐시(현재 캐시됨). 오프라인
+  교실용으로 셋업 시 사전 캐시 또는 번들(gitignore된 `runtime/` 자산 + fetch 스크립트, `npm run
+  vendor` 방식). tm.py는 번들 경로 우선, 없으면 `'imagenet'` 폴백, 완전 오프라인·미캐시 시 friendly 오류.
+
+## 그라운딩 검증 (사전 확인 완료)
+
+MobileNet 특징 + keras head 루프를 실제 실행: 2클래스 소량 학습 → held-out 예측 정확도 1.0 확인.
+embed dim 1280, dense(100,relu)→dense(N,softmax), adam/sparse-CE/30ep.
 
 ## 변경/생성 파일
 
-- **Create** `runtime/tm.py` — tm 런타임 모듈(load_model/Model.predict/predict_proba/labels + featurizer + head).
-- **Create** `scripts/gen-tm-blocks.cjs`, `src/data/tmSpecs.json` — tm 고정 블록 스펙(생성물).
-- **Create** 테스트: 패리티/엔드투엔드(브라우저 vs 파이썬), tm 블록 lower/round-trip, run-python `import tm`.
+- **Create** `runtime/tm.py` — Model(add_example/train/predict/predict_proba/labels/save) + load_model + featurizer.
+- **Create** `scripts/gen-tm-blocks.cjs`, `src/data/tmSpecs.json`(생성물).
+- **Create** 테스트: tm 파이썬 단위(학습→예측·save/load·friendly 오류), tm 블록(node lower + 브라우저 카테고리 + round-trip), run-python `import tm`.
 - **Modify** `server.js` — run-python spawn env에 `PYTHONPATH += runtime`.
-- **Modify** `src/App.jsx` — `bundledSpecs`에 `tmSpecs` 추가(한 줄 + import).
+- **Modify** `src/App.jsx` — `bundledSpecs`에 `tmSpecs` 추가(+import).
 
 **절대 수정 금지:** `irToBlockly.js`, `blocklyToIr.js`, `irBlocks.js`, `libRegistry.js`,
-`libImport.js`, `irToolbox.js`, `stdlibSpecs.json`, TM 패널 UI(`TeachableMachine.jsx`),
-`teachable.js`/`tmPack.js`(브라우저 학습·저장은 이미 완성 — 읽기만).
+`libImport.js`, `irToolbox.js`, `stdlibSpecs.json`, `robotSpecs.json`, TM 패널/`teachable.js`/`tmPack.js`.
 
 ## 테스트 (Testing)
 
-1. **패리티 게이트(우선):** 브라우저 임베딩 vs 파이썬 임베딩 코사인>0.999. (Playwright + python)
-2. **엔드투엔드:** 브라우저 미니학습→저장→파이썬 예측 라벨 일치.
-3. **tm 런타임 단위:** 봉투 로드, head numpy 순전파(고정 가중치 입력 → 기대 확률), 잘못된 형식
-   friendly 오류, tensorflow 미설치 시 degrade 메시지.
-4. **tm 블록:** node lower(`tm.load_model(p)`, `model.predict(frame)`, `model.predict_proba(frame)`,
-   `model.labels`) + 브라우저 "tm" 카테고리 존재 + dobotkit 프로그램과 함께 무손실 라운드트립.
-5. **run-python 통합:** `PYTHONPATH`로 `import tm` 성공(server.js 경유).
+1. **tm 파이썬 단위:** 결정적 2클래스 소량 → train → held-out predict 정답; save→load_model 후 예측 동일;
+   빈 클래스/미학습 predict → friendly 오류; tensorflow 미설치 시뮬레이트 → 안내.
+2. **tm 블록:** node lower(`tm.Model(labels)`, `model.add_example(frame,label)`, `model.train()`,
+   `model.predict(frame)`, `model.predict_proba(frame)`, `model.save(path)`, `model.labels`,
+   `tm.load_model(path)`) + 브라우저 "tm" 카테고리 존재 + dobotkit와 함께 무손실 라운드트립.
+3. **run-python 통합:** `PYTHONPATH`로 `import tm` 성공(server.js 경유).
 
 ## 전역 제약 (Global Constraints)
 
 - **변환 코어 불변** · **무손실 라운드트립**(ast.dump 동치) · **no hardcoded recognition tables**
   (오소링 프리셋만) · **불필요 파일 손대지 않기.**
-- tm 런타임은 **추론 전용**(학습은 브라우저). 브라우저와 **임베딩 일치**가 정확성의 전제 — 패리티
-  게이트 선통과.
-- `frame` 계약: numpy uint8 HxWx3.
+- 학습·추론 **동일 파이썬 featurizer** → 자기일관(크로스-환경 패리티 없음).
+- `frame`: numpy uint8 (H,W,3).
 
 ## 롤백 (Rollback)
 
-- `feat/tm-runtime-blocks`(dobotkit 위 스택)에서만 작업. 원복: `git checkout feat/dobotkit-blocks`
-  (B만 제거) 또는 `git reset --hard robot-wiring`(A+B 제거).
-- 완료·검증·승인 후 병합 시 태그 `tm-runtime`.
+- `feat/tm-runtime-blocks`(dobotkit 위 스택). 원복: `git checkout feat/dobotkit-blocks`(B만) /
+  `git reset --hard robot-wiring`(A+B). 완료·검증·승인 후 병합 시 태그 `tm-runtime`.
