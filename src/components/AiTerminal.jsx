@@ -11,6 +11,7 @@ export default function AiTerminal({ active }) {
   const termRef = useRef(null);
   const fitRef = useRef(null);
   const wsRef = useRef(null);
+  const roRef = useRef(null);
   const [status, setStatus] = useState('connecting'); // connecting | open | closed
 
   function sendResize() {
@@ -51,15 +52,25 @@ export default function AiTerminal({ active }) {
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'i', d }));
     });
 
+    // RO 는 최초 초기화 시 한 번만 만들고 ref 에 보관한다 — [active] 재실행(fold/unfold)마다
+    // disconnect 하면 재생성 없이 영구히 죽어버린다(termRef.current 가드에 막혀 재생성 안 됨).
     const ro = new ResizeObserver(() => { try { fit.fit(); sendResize(); } catch (_) {} });
     ro.observe(screenRef.current);
+    roRef.current = ro;
     connect();
-
-    return () => { ro.disconnect(); };
   }, [active]);
 
   // 패널이 다시 보일 때 크기 재적합
   useEffect(() => { if (active && fitRef.current) { try { fitRef.current.fit(); sendResize(); } catch (_) {} } }, [active]);
+
+  // 실제 언마운트 시에만 정리(RO/WS/Terminal 해제). [active] 효과와 분리 — fold/unfold 로는
+  // 절대 실행되지 않는다. Task 3 는 <AiTerminal> 을 열린 뒤 계속 마운트해두고 active/CSS 만
+  // 토글하므로, 이 정리는 앱 종료(언마운트) 시에만 실행된다.
+  useEffect(() => () => {
+    try { roRef.current?.disconnect(); } catch (_) {}
+    try { wsRef.current?.close(); } catch (_) {}
+    try { termRef.current?.dispose(); } catch (_) {}
+  }, []);
 
   function reconnect() {
     if (termRef.current) termRef.current.reset();
