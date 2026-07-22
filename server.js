@@ -15,9 +15,12 @@ const app = express();
 // the 127.0.0.1 bind below, direct LAN access (Host=<lan-ip>). The renderer is same-origin (packaged:
 // 127.0.0.1:<port>; dev: Vite proxies with changeOrigin so Host=localhost), so no CORS header is needed.
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
-app.use((req, res, next) => {
+function isLoopbackHost(req) {
   const host = String(req.headers.host || '').replace(/:\d+$/, '').toLowerCase();
-  if (LOOPBACK_HOSTS.has(host)) return next();
+  return LOOPBACK_HOSTS.has(host);
+}
+app.use((req, res, next) => {
+  if (isLoopbackHost(req)) return next();
   return res.status(403).json({ error: 'forbidden: local-only server' });
 });
 app.use(express.json({ limit: '30mb' })); // allow base64 image uploads
@@ -917,6 +920,7 @@ function attachTerminal(ws) {
 
   ws.on('message', (raw) => {
     let msg; try { msg = JSON.parse(raw.toString()); } catch (_) { return; }
+    if (!msg || typeof msg !== 'object') return;
     if (msg.t === 'i' && typeof msg.d === 'string') { try { pty.write(msg.d); } catch (_) {} }
     else if (msg.t === 'r' && Number.isInteger(msg.cols) && Number.isInteger(msg.rows)) {
       try { pty.resize(Math.max(1, msg.cols), Math.max(1, msg.rows)); } catch (_) {}
@@ -948,8 +952,7 @@ function start(port = process.env.PORT || 3001) {
     // (Express 의 Host 미들웨어는 WS 업그레이드에 적용되지 않으므로 여기서 직접 검사).
     server.on('upgrade', (req, socket, head) => {
       if (!String(req.url || '').startsWith('/api/terminal')) { socket.destroy(); return; }
-      const host = String(req.headers.host || '').replace(/:\d+$/, '').toLowerCase();
-      if (!LOOPBACK_HOSTS.has(host)) { socket.destroy(); return; }
+      if (!isLoopbackHost(req)) { socket.destroy(); return; }
       wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
     });
   });
