@@ -52,8 +52,9 @@ WebSocket PTY 엔드포인트를 추가하면 **dev(`npm start`)와 패키징 �
   - **셸:** Windows → `powershell.exe`(에이전트 CLI 친화적; 실패 시 `process.env.COMSPEC || 'cmd.exe'`),
     POSIX → `process.env.SHELL || 'bash'`.
   - **cwd:** `WORKSPACE_DIR` (run-python·파일탐색기와 동일).
-  - **env:** `process.env` 계승 + `PYTHONPATH`에 `RUNTIME_DIR` 선두 결합(run-python과 동일 규칙)
-    + `BLOCKPY_TERMINAL=1` 마커.
+  - **env:** `process.env` 계승 + `PYTHONIOENCODING=utf-8` + `BLOCKPY_TERMINAL=1` 마커
+    (이 브랜치는 master 분기라 run-python에 `RUNTIME_DIR`/`PYTHONPATH` 배선이 없다 — 터미널도
+    동일하게 넣지 않는다. tm 브랜치 병합 시 run-python과 함께 일괄 배선).
   - 초기 cols/rows는 클라이언트 첫 리사이즈 프레임 도착 전 기본값(80x24).
 - **중계 규약(클라이언트→서버 메시지):**
   - 일반 키 입력: `{"t":"i","d":"<문자열>"}` → `pty.write(d)`.

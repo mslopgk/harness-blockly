@@ -41,7 +41,7 @@
 - Create: `tests/ai_terminal.test.mjs`
 
 **Interfaces:**
-- Consumes: 기존 `LOOPBACK_HOSTS`(server.js:16), `WORKSPACE_DIR`(server.js:45), `RUNTIME_DIR`(server.js:50), `start(port)`(server.js:887, returns `{server, port}`).
+- Consumes: 기존 `LOOPBACK_HOSTS`(server.js:16), `WORKSPACE_DIR`(server.js:45), `start(port)`(server.js:887, returns `{server, port}`). (주의: 이 브랜치는 master 분기라 `RUNTIME_DIR`가 없다 — 터미널 env에 넣지 않는다.)
 - Produces: WS 엔드포인트 `GET (upgrade) /api/terminal`. 클라이언트→서버 프레임 `{"t":"i","d":string}`(입력) / `{"t":"r","cols":int,"rows":int}`(리사이즈). 서버→클라이언트: PTY 출력 문자열.
 
 - [ ] **Step 1: 의존성 설치**
@@ -125,8 +125,7 @@ const { WebSocketServer } = require('ws');
 ```js
 // ─── AI 도우미 터미널 (WebSocket PTY) ───────────────────────────────────────────
 // /api/terminal 로 붙는 WS 연결마다 실제 셸(PTY)을 띄워 바이트를 양방향 중계한다.
-// cwd 는 워크스페이스(파일탐색기/Run 과 동일), PYTHONPATH 에 runtime/ 를 얹어 셸에서
-// python 을 돌려도 `import tm` 이 된다. run-python 과 같은 로컬 단일 사용자 신뢰 모델.
+// cwd 는 워크스페이스(파일탐색기/Run 과 동일). run-python 과 같은 로컬 단일 사용자 신뢰 모델.
 const wss = new WebSocketServer({ noServer: true });
 
 function pickShell() {
@@ -143,9 +142,7 @@ function attachTerminal(ws) {
     try {
       pty = nodePty.spawn(shell, [], {
         name: 'xterm-color', cols: 80, rows: 24, cwd: WORKSPACE_DIR,
-        env: { ...process.env, PYTHONIOENCODING: 'utf-8',
-          PYTHONPATH: [RUNTIME_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
-          BLOCKPY_TERMINAL: '1' },
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8', BLOCKPY_TERMINAL: '1' },
       });
     } catch (e1) {
       if (process.platform === 'win32') {
