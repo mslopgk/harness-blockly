@@ -16,6 +16,7 @@
     "test": "playwright test",
     "test:ir": "playwright test tests/ir_",
     "test:tm": "node --test tests/tm_pack.test.mjs",
+    "test:terminal": "node --test tests/ai_terminal.test.mjs tests/xterm_url.test.mjs",
     "test:gen": "npm --prefix blockpy-gen test",
     "test:e2e": "playwright test tests/e2e.spec.js",
     "test:p0p1": "playwright test tests/test_p0_p1.spec.js",
@@ -57,7 +58,8 @@
     ],
     "asar": true,
     "asarUnpack": [
-      "blockpy-gen/**/*"
+      "blockpy-gen/**/*",
+      "node_modules/node-pty/**/*"
     ],
     "extraResources": [
       {
@@ -100,9 +102,11 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "node-pty": "^1.1.0",
     "prismjs": "^1.30.0",
     "pyodide": "^0.26.4",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "ws": "^8.21.1"
   }
 }

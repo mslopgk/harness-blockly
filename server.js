@@ -5,6 +5,7 @@ const { spawn } = require('child_process');
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
+const { WebSocketServer } = require('ws');
 
 
 const app = express();
@@ -877,6 +878,58 @@ if (STATIC_DIR && fs.existsSync(STATIC_DIR)) {
   });
 }
 
+// ─── AI 도우미 터미널 (WebSocket PTY) ───────────────────────────────────────────
+// /api/terminal 로 붙는 WS 연결마다 실제 셸(PTY)을 띄워 바이트를 양방향 중계한다.
+// cwd 는 워크스페이스(파일탐색기/Run 과 동일). run-python 과 같은 로컬 단일 사용자 신뢰 모델.
+const wss = new WebSocketServer({ noServer: true });
+
+function pickShell() {
+  if (process.platform === 'win32') return 'powershell.exe';
+  return process.env.SHELL || 'bash';
+}
+
+function attachTerminal(ws) {
+  let pty;
+  try {
+    // 지연 require: 네이티브 빌드가 없더라도 서버의 나머지는 살아있게 한다.
+    const nodePty = require('node-pty');
+    let shell = pickShell();
+    try {
+      pty = nodePty.spawn(shell, [], {
+        name: 'xterm-color', cols: 80, rows: 24, cwd: WORKSPACE_DIR,
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8', BLOCKPY_TERMINAL: '1' },
+      });
+    } catch (e1) {
+      if (process.platform === 'win32') {
+        shell = process.env.COMSPEC || 'cmd.exe'; // powershell 실패 시 폴백
+        pty = nodePty.spawn(shell, [], { name: 'xterm-color', cols: 80, rows: 24, cwd: WORKSPACE_DIR,
+          env: { ...process.env, BLOCKPY_TERMINAL: '1' } });
+      } else { throw e1; }
+    }
+  } catch (e) {
+    try { ws.send(`\r\n[터미널을 시작할 수 없습니다: ${e.message}]\r\n`); } catch (_) {}
+    try { ws.close(); } catch (_) {}
+    return;
+  }
+
+  pty.onData((d) => { try { ws.send(d); } catch (_) {} });
+  pty.onExit(() => { try { ws.close(); } catch (_) {} });
+
+  ws.on('message', (raw) => {
+    let msg; try { msg = JSON.parse(raw.toString()); } catch (_) { return; }
+    if (msg.t === 'i' && typeof msg.d === 'string') { try { pty.write(msg.d); } catch (_) {} }
+    else if (msg.t === 'r' && Number.isInteger(msg.cols) && Number.isInteger(msg.rows)) {
+      try { pty.resize(Math.max(1, msg.cols), Math.max(1, msg.rows)); } catch (_) {}
+    }
+  });
+
+  const kill = () => { try { pty.kill(); } catch (_) {} };
+  ws.on('close', kill);
+  ws.on('error', kill);
+}
+
+wss.on('connection', attachTerminal);
+
 function start(port = process.env.PORT || 3001) {
   return new Promise((resolve) => {
     // Bind LOOPBACK ONLY (127.0.0.1) — never all interfaces. Prevents any other host on the LAN from
@@ -890,6 +943,14 @@ function start(port = process.env.PORT || 3001) {
       seedSampleImages();
       seedStarterFile();
       resolve({ server, port: actual });
+    });
+    // WS 업그레이드: /api/terminal 만 처리하고, loopback Host 가 아니면 소켓을 파기한다
+    // (Express 의 Host 미들웨어는 WS 업그레이드에 적용되지 않으므로 여기서 직접 검사).
+    server.on('upgrade', (req, socket, head) => {
+      if (!String(req.url || '').startsWith('/api/terminal')) { socket.destroy(); return; }
+      const host = String(req.headers.host || '').replace(/:\d+$/, '').toLowerCase();
+      if (!LOOPBACK_HOSTS.has(host)) { socket.destroy(); return; }
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
     });
   });
 }
