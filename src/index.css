@@ -1989,3 +1989,16 @@ select:focus, .pip-input:focus {
 }
 .example-card-load { font-size: 0.74rem; font-weight: 600; color: var(--coral); }
 .example-card-load i { margin-right: 5px; }
+
+/* ─── AI 도우미 터미널 패널 ─────────────────────────────────────────────── */
+.terminal-panel { position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.terminal-panel[data-open="0"] { align-items: center; }
+.terminal-resize-handle { position: absolute; left: -6px; top: 0; width: 10px; height: 100%; cursor: col-resize; z-index: 5; }
+.terminal-toggle { align-self: flex-start; margin-bottom: 0.5rem; }
+.terminal-panel[data-open="0"] .terminal-toggle { writing-mode: vertical-rl; height: auto; padding: 0.5rem 0.25rem; }
+.terminal-body { flex: 1; min-height: 0; }
+.ai-terminal { display: flex; flex-direction: column; height: 100%; background: #1a1815; border-radius: 8px; overflow: hidden; }
+.ai-terminal-bar { display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0.6rem; background: #242019; color: #e8e3da; font-size: 0.8rem; }
+.ai-terminal-title i { margin-right: 0.4rem; }
+.ai-terminal-screen { flex: 1; min-height: 0; padding: 0.4rem; }
+.ai-terminal-screen .xterm, .ai-terminal-screen .xterm-viewport { height: 100% !important; }

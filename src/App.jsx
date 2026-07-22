@@ -10,6 +10,7 @@ import RobotConnect from './components/RobotConnect';
 import RobotCalibrate from './components/RobotCalibrate';
 import TeachableMachine from './components/TeachableMachine';
 import ExampleGalleryContent from './components/ExampleGalleryContent';
+import AiTerminal from './components/AiTerminal.jsx';
 import { interruptPyodide, prewarmEnvironment, writeImageToFS } from './utils/pyodideRunner';
 import stdlibSpecs from './data/stdlibSpecs.json';
 
@@ -34,6 +35,23 @@ export default function App() {
   const [activeFile, setActiveFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null); // { name, url } | null
   const [fsReload, setFsReload] = useState(0);
+
+  // AI 도우미 터미널 패널: 접힘/펼침 + 너비를 localStorage에 유지. terminalEverOpened 는
+  // 한 번이라도 열렸으면 true 로 래치되어 <AiTerminal> 을 계속 마운트해둔다(세션/스크롤백 보존).
+  const [terminalOpen, setTerminalOpen] = useState(() => localStorage.getItem('blockpy.terminal.open') === '1');
+  const [terminalWidth, setTerminalWidth] = useState(() => Number(localStorage.getItem('blockpy.terminal.width')) || 380);
+  const [terminalEverOpened, setTerminalEverOpened] = useState(() => localStorage.getItem('blockpy.terminal.open') === '1');
+  useEffect(() => { localStorage.setItem('blockpy.terminal.open', terminalOpen ? '1' : '0'); if (terminalOpen) setTerminalEverOpened(true); }, [terminalOpen]);
+  useEffect(() => { localStorage.setItem('blockpy.terminal.width', String(terminalWidth)); }, [terminalWidth]);
+
+  // 터미널 패널 너비 드래그 리사이즈(왼쪽 핸들). 포인터 이동을 추적해 240~800px 로 클램프.
+  const startTerminalResize = (e) => {
+    e.preventDefault();
+    const startX = e.clientX, startW = terminalWidth;
+    const onMove = (ev) => { const w = startW + (startX - ev.clientX); setTerminalWidth(Math.min(800, Math.max(240, w))); };
+    const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+    window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
+  };
   // 로봇 연결 상태(RobotConnect가 올려줌) — 캘리브레이션 이동이 같은 포트를 쓰도록 App에 보관.
   const [robotConn, setRobotConn] = useState({ connected: false, device: 'lite', port: null });
 
@@ -1395,7 +1413,7 @@ for i in range(4):
           AST Parser Tree tab to reclaim full-height vertical space. */}
 
       {/* Main Dashboard Layout grid */}
-      <main className="dashboard-grid">
+      <main className="dashboard-grid" style={{ gridTemplateColumns: `380px 1fr ${terminalOpen ? terminalWidth + 'px' : '2.25rem'}` }}>
         {/* Left Side Panels: Stage, console, scopes, abstractions */}
         <section className="left-panel">
           {/* Unified left pane — Stage + watches + logs + gray blocks + AI/OpenCV, all as tabs */}
@@ -1708,6 +1726,23 @@ for i in range(4):
               </div>
             </div>
           </div>
+        </section>
+
+        <section className="terminal-panel" data-open={terminalOpen ? '1' : '0'}>
+          {terminalOpen && <div className="terminal-resize-handle" onPointerDown={startTerminalResize} title="너비 조절" />}
+          <button
+            className="terminal-toggle btn btn-secondary btn-sm"
+            onClick={() => setTerminalOpen((v) => !v)}
+            title={terminalOpen ? '터미널 접기' : 'AI 도우미 터미널 열기'}
+            aria-label={terminalOpen ? '터미널 접기' : 'AI 도우미 터미널 열기'}
+          >
+            <i className={`fa-solid ${terminalOpen ? 'fa-angles-right' : 'fa-terminal'}`}></i>
+          </button>
+          {terminalEverOpened && (
+            <div className="terminal-body" style={{ display: terminalOpen ? 'flex' : 'none' }}>
+              <AiTerminal active={terminalOpen} />
+            </div>
+          )}
         </section>
       </main>
 
