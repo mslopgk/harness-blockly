@@ -1,29 +1,60 @@
-# [H1] 자연어로 로봇 제어 — 말(명령어)로 로봇팔을 움직인다
-# 사람이 입력한 명령을 알아듣고 로봇팔이 해당 동작을 수행한다.
-# (원래 수업은 VLM+LLM 을 쓰지만, 여기서는 명령어 → 동작 매핑으로 핵심을 익힌다.)
+# [H1] 자연어로 로봇 제어 — 말로 지시하면 로봇팔이 알아듣고 움직인다
+# 고등 파이썬 수업: 자연어(키워드) 해석 → 동작 매핑을 함수로 구조화한다.
+# (원래 수업은 VLM(눈)+LLM(두뇌)로 VLA를 하지만, 여기선 파이썬으로 명령 해석기를 직접 만든다.)
 import dobotkit
 
-# 로봇팔 연결
-arm = dobotkit.MagicianLite()
-arm.home()
-arm.set_speed(50, 50)
+# 미리 정해둔 자리 (실제로는 카메라 캘리브레이션으로 픽셀→로봇 좌표를 구한다)
+PLACES = {
+    '왼쪽': (150, 100, 40),
+    '가운데': (200, 0, 40),
+    '오른쪽': (150, -100, 40),
+}
 
-# 명령을 입력받아 실행 (예: 집어, 놓아, 올려, 내려, 집으로)
-command = input('명령을 말하세요: ')
 
-if command == '집어':
-    arm.move_to(200, 0, 20)
-    arm.suck(True)
-elif command == '놓아':
-    arm.move_to(150, 100, 20)
-    arm.suck(False)
-elif command == '올려':
-    arm.move_relative(0, 0, 40)
-elif command == '내려':
-    arm.move_relative(0, 0, -40)
-elif command == '집으로':
+def parse_command(text):
+    """자연어 문장에서 동작(집기/놓기)과 위치를 뽑아낸다."""
+    action = None
+    if '집' in text:
+        action = 'pick'
+    elif '놓' in text or '내려' in text:
+        action = 'place'
+
+    place = None
+    for name in PLACES:
+        if name in text:
+            place = name
+    return action, place
+
+
+def run_command(arm, text):
+    """해석한 명령을 로봇팔 동작으로 실행한다."""
+    action, place = parse_command(text)
+    if place is not None:
+        x, y, z = PLACES[place]
+        arm.move_to(x, y, z)
+    if action == 'pick':
+        arm.suck(True)
+    elif action == 'place':
+        arm.suck(False)
+    else:
+        print('무슨 동작인지 모르겠어요:', text)
+
+
+def main():
+    arm = dobotkit.MagicianLite()
+    arm.set_speed(50, 50)
     arm.home()
-else:
-    print('모르는 명령이에요:', command)
 
-print('현재 위치:', arm.get_pose())
+    print('명령을 말해보세요. (예: "왼쪽 물건 집어", "가운데에 놓아")  끝내려면 "끝"')
+    while True:
+        text = input('명령> ')
+        if text == '끝' or text == '':
+            break
+        run_command(arm, text)
+
+    arm.home()
+    print('종료합니다. 마지막 위치:', arm.get_pose())
+
+
+if __name__ == '__main__':
+    main()

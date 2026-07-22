@@ -30,21 +30,21 @@ const LESSON_EXAMPLES = [
     title: '[고등] 자연어로 로봇 제어 (VLA)',
     category: '수업 (고등)',
     file: 'h1_nl_control.py',
-    preview: '명령어(자연어)를 알아듣고 로봇팔이 동작한다(dobotkit).\ninput + if/elif → arm.move_to/suck/move_relative — 블록으로 변환됨.',
+    preview: '고등 파이썬 수업 — 자연어 명령 해석기를 함수로 만들어 로봇팔 제어(dobotkit).\nparse_command/run_command + 입력 루프. 실제 파이썬 코드로 학습.',
   },
   {
     id: 'lesson-h2-teleop',
     title: '[고등] 텔레오퍼레이션 (제스처 전기능 제어)',
     category: '수업 (고등)',
     file: 'h2_teleop.py',
-    preview: '손 제스처를 배워서(tm) 로봇팔을 실시간 원격 조종한다.\ntm.predict 루프 + arm.move_relative/suck — 블록으로 변환됨.',
+    preview: '고등 파이썬 수업 — 제스처 분류(tm) 학습 후 로봇팔 실시간 원격 조종.\ntrain_gesture_model/apply_gesture + 제어 루프. 실제 파이썬 코드로 학습.',
   },
   {
     id: 'lesson-h3-drive',
     title: '[고등] 비전 AI 자율주행 (가르쳐서 달리는 차)',
     category: '수업 (고등)',
     file: 'h3_vision_drive.py',
-    preview: '길 방향을 배워서(tm) 스스로 달리는 Magician GO(dobotkit).\ntm.predict 루프 + car.move/forward — 블록으로 변환됨.',
+    preview: '고등 파이썬 수업 — 수집→학습→추론(tm)으로 Magician GO 자율주행(dobotkit).\ncollect_and_train/drive + 주행 루프. 실제 파이썬 코드로 학습.',
   },
 ];
 
