@@ -470,9 +470,9 @@ right-panel 닫는 `</section>` (line 1711)과 `</main>` (line 1712) **사이**�
             className="terminal-toggle btn btn-secondary btn-sm"
             onClick={() => setTerminalOpen((v) => !v)}
             title={terminalOpen ? '터미널 접기' : 'AI 도우미 터미널 열기'}
+            aria-label={terminalOpen ? '터미널 접기' : 'AI 도우미 터미널 열기'}
           >
             <i className={`fa-solid ${terminalOpen ? 'fa-angles-right' : 'fa-terminal'}`}></i>
-            {terminalOpen ? '' : ''}
           </button>
           {terminalEverOpened && (
             <div className="terminal-body" style={{ display: terminalOpen ? 'flex' : 'none' }}>
