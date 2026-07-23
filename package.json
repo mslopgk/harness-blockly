@@ -49,6 +49,8 @@
       "server.js",
       "src/utils/**/*",
       "blockpy-gen/**/*",
+      "agent-context/**/*",
+      "runtime/**/*",
       "package.json",
       "!**/node_modules/pyodide/**",
       "!**/node_modules/blockly/**",
@@ -59,7 +61,8 @@
     "asar": true,
     "asarUnpack": [
       "blockpy-gen/**/*",
-      "node_modules/node-pty/**/*"
+      "node_modules/node-pty/**/*",
+      "runtime/**/*"
     ],
     "extraResources": [
       {

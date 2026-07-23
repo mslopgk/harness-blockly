@@ -164,6 +164,38 @@ function seedStarterFile() {
   } catch (_) {}
 }
 
+// AGENTS.md/CLAUDE.md + examples 를 워크스페이스에 멱등 시딩 — 터미널의 AI 에이전트가
+// 플랫폼 목적·API·규칙을 자동으로 읽게 한다. 없을 때만 쓰고 사용자 파일은 절대 안 덮는다.
+function seedAgentContext() {
+  try {
+    // 1) AGENTS.md (리포 agent-context/ 템플릿 복사)
+    const agentsSrc = path.join(__dirname, 'agent-context', 'AGENTS.md');
+    const agentsDst = path.join(WORKSPACE_DIR, 'AGENTS.md');
+    if (fs.existsSync(agentsSrc) && !fs.existsSync(agentsDst)) {
+      fs.copyFileSync(agentsSrc, agentsDst);
+    }
+    // 2) CLAUDE.md — Claude Code 가 AGENTS.md 를 읽도록 @import 한 줄
+    const claudeDst = path.join(WORKSPACE_DIR, 'CLAUDE.md');
+    if (!fs.existsSync(claudeDst)) {
+      fs.writeFileSync(claudeDst,
+        '# CLAUDE.md\n이 폴더의 AI 도우미 안내는 AGENTS.md 를 따른다.\n@AGENTS.md\n', 'utf8');
+    }
+    // 3) 커리큘럼 예제 복사 (dev: public/examples, 패키징: dist/examples = STATIC_DIR/examples)
+    const exSrc = (STATIC_DIR && fs.existsSync(path.join(STATIC_DIR, 'examples')))
+      ? path.join(STATIC_DIR, 'examples')
+      : path.join(__dirname, 'public', 'examples');
+    const NAMES = ['m1_ai_sorting.py', 'm2_gesture_rps.py', 'h1_nl_control.py', 'h2_teleop.py', 'h3_vision_drive.py'];
+    if (fs.existsSync(exSrc)) {
+      const exDst = path.join(WORKSPACE_DIR, 'examples');
+      fs.mkdirSync(exDst, { recursive: true });
+      for (const n of NAMES) {
+        const s = path.join(exSrc, n), d = path.join(exDst, n);
+        if (fs.existsSync(s) && !fs.existsSync(d)) fs.copyFileSync(s, d);
+      }
+    }
+  } catch (e) { console.log('[grounding] seed skipped:', e.message); }
+}
+
 // ─── MiniMax API Key Pool (Round-Robin) ───────────────────────────────────────
 // Keys come from (in order): the dev .env (MINIMAX1~4), a writable per-machine config the in-app
 // Settings panel saves (BLOCKPY_CONFIG, set by Electron to userData), and an optional read-only
@@ -953,6 +985,7 @@ function start(port = process.env.PORT || 3001) {
       console.log(`📁 Workspace (file explorer + run cwd): ${WORKSPACE_DIR}\n`);
       seedSampleImages();
       seedStarterFile();
+      seedAgentContext();
       resolve({ server, port: actual });
     });
     // WS 업그레이드: /api/terminal 만 처리하고, loopback Host 가 아니면 소켓을 파기한다
@@ -971,4 +1004,4 @@ if (require.main === module) {
   start();
 }
 
-module.exports = { app, start };
+module.exports = { app, start, seedAgentContext };
