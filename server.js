@@ -51,7 +51,9 @@ try { fs.mkdirSync(WORKSPACE_DIR, { recursive: true }); } catch (_) {}
 // MEDIA_DIR kept as an alias for existing call sites (uploads, seed images, run cwd).
 const MEDIA_DIR = WORKSPACE_DIR;
 // Platform runtime modules importable from any workspace (e.g. `import tm`) — put on PYTHONPATH.
-const RUNTIME_DIR = path.join(__dirname, 'runtime');
+// Use genBase() so the packaged app points at app.asar.unpacked/runtime (asarUnpack'd): the
+// external python process can't read files inside app.asar. In dev genBase()==__dirname (no-op).
+const RUNTIME_DIR = path.join(genBase(), 'runtime');
 
 // Resolve a client-supplied relative path INSIDE the workspace, rejecting traversal/absolute
 // escapes. Returns the absolute path, or null if it would leave the workspace.
