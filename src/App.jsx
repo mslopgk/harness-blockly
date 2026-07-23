@@ -1413,7 +1413,7 @@ for i in range(4):
           AST Parser Tree tab to reclaim full-height vertical space. */}
 
       {/* Main Dashboard Layout grid */}
-      <main className="dashboard-grid" style={{ gridTemplateColumns: `380px 1fr ${terminalOpen ? terminalWidth + 'px' : '2.25rem'}` }}>
+      <main className="dashboard-grid" style={{ gridTemplateColumns: `380px minmax(0, 1fr) ${terminalOpen ? terminalWidth + 'px' : '2.25rem'}` }}>
         {/* Left Side Panels: Stage, console, scopes, abstractions */}
         <section className="left-panel">
           {/* Unified left pane — Stage + watches + logs + gray blocks + AI/OpenCV, all as tabs */}
