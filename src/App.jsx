@@ -1425,22 +1425,13 @@ for i in range(4):
   };
 
   // Theme Toggler — default is the Claude cream canvas; toggle flips to the in-brand dark navy.
+  // CSS 테마만 토글한다. 이전 구현은 Blockly 워크스페이스를 dispose 후 재로드했지만, BlocklyEditor 의
+  // 주입 이펙트는 마운트당 1회만 실행돼 워크스페이스가 재생성되지 않는다. 그래서 workspaceRef 가
+  // 폐기(headless)된 워크스페이스를 계속 가리킨 채 남아, 이후 Convert/자동 리로드의 workspaces.load 가
+  // "Cannot read properties of undefined (reading 'contains')" 로 크래시했다. dispose/reload 를 제거한다.
   const toggleTheme = () => {
     setIsDarkTheme(!isDarkTheme);
     document.body.classList.toggle('theme-dark');
-    
-    // Refresh workspace layout safely
-    if (workspaceRef.current) {
-      const savedSnapshot = window.Blockly.serialization.workspaces.save(workspaceRef.current);
-      workspaceRef.current.dispose();
-      
-      // Mount will naturally rerun inside BlocklyEditor once it is recreated/reloaded.
-      setTimeout(() => {
-        if (workspaceRef.current) {
-          window.Blockly.serialization.workspaces.load(savedSnapshot, workspaceRef.current);
-        }
-      }, 50);
-    }
   };
 
   // Phase 4 slice 4: the preview pane reflects the REAL IR desugar (desugaredPreview, computed by
