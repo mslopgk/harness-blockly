@@ -939,13 +939,17 @@ function attachTerminal(ws) {
     try {
       pty = nodePty.spawn(shell, [], {
         name: 'xterm-color', cols: 80, rows: 24, cwd: WORKSPACE_DIR,
-        env: { ...process.env, PYTHONIOENCODING: 'utf-8', BLOCKPY_TERMINAL: '1' },
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8',
+          PYTHONPATH: [RUNTIME_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
+          BLOCKPY_TERMINAL: '1' },
       });
     } catch (e1) {
       if (process.platform === 'win32') {
         shell = process.env.COMSPEC || 'cmd.exe'; // powershell 실패 시 폴백
         pty = nodePty.spawn(shell, [], { name: 'xterm-color', cols: 80, rows: 24, cwd: WORKSPACE_DIR,
-          env: { ...process.env, BLOCKPY_TERMINAL: '1' } });
+          env: { ...process.env,
+            PYTHONPATH: [RUNTIME_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
+            BLOCKPY_TERMINAL: '1' } });
       } else { throw e1; }
     }
   } catch (e) {
