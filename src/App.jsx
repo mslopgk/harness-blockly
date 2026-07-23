@@ -104,6 +104,7 @@ export default function App() {
   const classNamesRef = useRef(new Set());          // library class names seen (Tier-1 receiver-type inference)
   const convertBindingsRef = useRef(new Map());     // dotted module -> the LOCAL name this program binds it to (np)
   const latestCodeRef = useRef('');                 // mirrors `code` for async callbacks (startup-load clobber guard)
+  const diskContentRef = useRef('');                // 활성 파일의 마지막 디스크 동기 내용(자동 리로드 기준)
   const associatedPythonRef = useRef('');
   const shellAbortRef = useRef(null);
   const desugarToggleMountRef = useRef(true);   // skip the toggle re-Convert on initial mount
@@ -568,6 +569,7 @@ export default function App() {
             setTimeout(() => {
               if (applied && latestCodeRef.current === content) {
                 setActiveFile('main.py');
+                diskContentRef.current = content;
                 syncCodeToBlocks(content);
               }
             }, 80);
@@ -934,6 +936,7 @@ for i in range(4):
       const content = j.content || '';
       setActiveFile(relPath);
       setCode(content);
+      diskContentRef.current = content;
       setActiveEditorTab('python');
       // For Python files, also rebuild the blocks from the opened file. Without this the
       // workspace still holds the previously loaded program, and its block->code listener
@@ -955,6 +958,7 @@ for i in range(4):
         body: JSON.stringify({ path: activeFile, content: code }),
       });
       if (!r.ok) { const j = await r.json().catch(() => ({})); setLogs((prev) => [...prev, `[Files] Save failed: ${j.error || r.status}`]); return; }
+      diskContentRef.current = code;   // 방금 저장한 내용이 디스크 기준 — 자동 리로드가 이를 되불러오지 않게
       if (!opts.silent) setLogs((prev) => [...prev, `[Files] Saved ${activeFile}.`]);
       setFsReload((n) => n + 1);
     } catch (e) {
@@ -973,6 +977,33 @@ for i in range(4):
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [activeFile, code]);
+
+  // 활성 .py 파일이 디스크에서 (예: 터미널의 AI 에이전트에 의해) 바뀌면 편집기를 자동으로 다시 불러온다.
+  // .py 가 열려 있을 때 ~1.5s 폴링. 디스크 내용이 마지막 동기 내용과 다르면 리로드한다
+  // (사용자 선택: 미저장 편집이 있어도 항상 리로드). 실제 리로드는 디스크가 바뀐 틱에서만 일어난다.
+  // (background 탭 가드는 두지 않는다 — 파일 하나 폴링은 저렴하고, 학생이 다른 탭에 있어도 최신 유지.)
+  useEffect(() => {
+    if (!activeFile || !activeFile.endsWith('.py')) return;
+    let stopped = false;
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const r = await fetch('/api/fs/file?path=' + encodeURIComponent(activeFile));
+        if (!r.ok) return;
+        const j = await r.json();
+        if (j.kind !== 'text') return;
+        const disk = j.content || '';
+        if (disk !== diskContentRef.current) {
+          diskContentRef.current = disk;
+          setCode(disk);
+          syncCodeToBlocks(disk);
+          setLogs((prev) => [...prev, `[Files] ${activeFile} 이(가) 디스크에서 변경되어 자동으로 다시 불러왔습니다.`]);
+        }
+      } catch (_) {}
+    };
+    const id = setInterval(tick, 1500);
+    return () => { stopped = true; clearInterval(id); };
+  }, [activeFile]);
 
   // ── Stop: interrupt any running program (shell run; also a no-op Pyodide interrupt) ──────────
   const handleStopExecution = () => {
