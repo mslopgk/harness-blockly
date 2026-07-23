@@ -278,7 +278,17 @@ def _unparse(js):
     return out
 `;
 
+// Conversion shares Pyodide's interrupt buffer with the Run/Stop path. A prior Stop
+// (interruptPyodide -> buffer=2/SIGINT) leaves the flag set and only runCode clears it, so any
+// convert after a Stop would see the pending SIGINT and raise KeyboardInterrupt on ast.parse's
+// first op (dedent). Conversion is a fast internal parse with no "stop conversion" affordance, so
+// clear the flag before running — a stale run-interrupt must never poison a convert.
+function clearInterrupt(pyodide) {
+  if (pyodide && pyodide._interruptBuffer) pyodide._interruptBuffer[0] = 0;
+}
+
 async function pythonToIR(pyodide, code) {
+  clearInterrupt(pyodide);
   pyodide.runPython(PY_AST_TO_JSON);
   // _parse is a PyProxy; release it after use so repeated sync doesn't leak WASM resources.
   const parse = pyodide.globals.get('_parse');
@@ -290,6 +300,7 @@ async function pythonToIR(pyodide, code) {
 }
 
 async function irToPython(pyodide, ir) {
+  clearInterrupt(pyodide);
   pyodide.runPython(PY_IR_TO_CODE);
   const unparse = pyodide.globals.get('_unparse');
   try {
