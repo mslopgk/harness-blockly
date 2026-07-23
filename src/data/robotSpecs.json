@@ -91,6 +91,13 @@
    {
     "kind": "method",
     "owner": "Arm",
+    "name": "pump_off",
+    "params": [],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Arm",
     "name": "set_speed",
     "params": [
      {

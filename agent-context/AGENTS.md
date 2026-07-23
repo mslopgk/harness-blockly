@@ -34,7 +34,10 @@
 로봇팔 MagicianLite:
 - `arm = dobotkit.MagicianLite()`
 - `arm.home()` / `arm.move_to(x, y, z)` / `arm.move_relative(dx, dy, dz)`
-- `arm.suck(on)` — 흡착(on=True/False) / `arm.grip(on)` — 그리퍼
+- `arm.suck(on)` — 흡착(on=True 잡기 / False 놓기) / `arm.grip(on)` — 그리퍼(True 닫기 / False 열기)
+  - 주의: `suck(False)`/`grip(False)`는 놓기/열기만 하고 **펌프는 계속 돈다**(재동작 빠르게).
+    펌프를 완전히 멈추려면 `arm.pump_off()`. (연결 종료 시엔 자동으로 꺼짐.)
+- `arm.pump_off()` — 에어펌프 완전 정지(조용해짐)
 - `arm.set_speed(velocity, acceleration)` / `arm.get_pose()`
 
 주행로봇 MagicianGO:
