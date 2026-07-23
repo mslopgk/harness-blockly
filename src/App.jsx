@@ -13,6 +13,8 @@ import ExampleGalleryContent from './components/ExampleGalleryContent';
 import AiTerminal from './components/AiTerminal.jsx';
 import { interruptPyodide, prewarmEnvironment, writeImageToFS } from './utils/pyodideRunner';
 import stdlibSpecs from './data/stdlibSpecs.json';
+import robotSpecs from './data/robotSpecs.json';
+import tmSpecs from './data/tmSpecs.json';
 
 // A pip PACKAGE name is not always the IMPORT name (opencv-python→cv2, pillow→PIL, …). Map the
 // common mismatches; default = the package lowercased with '-' → '_' (pydobot→pydobot, scikit→…).
@@ -516,15 +518,26 @@ export default function App() {
       // scripts/gen-stdlib-blocks.cjs — cv2's hand-authored signatures live there, replacing the old
       // AI_PRESETS table, since opencv's C functions expose no introspectable signature).
       const imp = window.BlockPyLibImport;
-      if (imp && Array.isArray(stdlibSpecs)) {
-        for (const spec of stdlibSpecs) {
-          for (const s of imp.librarySpecToRegistrySpecs(spec, { both: false }).specs) {
+      // 번들 built-in 스펙: 파이썬 stdlib/cv2(stdlibSpecs) + dobotkit 로봇 블록(robotSpecs).
+      // 둘 다 builtin 등록 → 항상 존재, 사용자 삭제 불가, localStorage 미저장.
+      const bundledSpecs = [
+        ...(Array.isArray(stdlibSpecs) ? stdlibSpecs : []),
+        ...(Array.isArray(robotSpecs) ? robotSpecs : []),
+        ...(Array.isArray(tmSpecs) ? tmSpecs : []),
+      ];
+      if (imp) {
+        for (const spec of bundledSpecs) {
+          const mapped = imp.librarySpecToRegistrySpecs(spec, { both: false });
+          for (const s of mapped.specs) {
             const res = reg.registerLibBlock({ ...s, builtin: true });
             if (res.ok && !installed.some((e) => e.type === res.type)) {
               const stored = reg.getLibSpec(res.type) || s;
               installed.push({ type: res.type, title: stored.title, hasOutput: stored.hasOutput, func: stored.func, args: stored.argNames, colour: stored.colour });
             }
           }
+          // 값 속성/상수(tm.Model.labels 등)도 등록 → 토크박스 Properties/Constants 에 노출.
+          if (reg.registerProp) for (const p of (mapped.props || [])) reg.registerProp(p);
+          if (reg.registerConst) for (const c of (mapped.consts || [])) reg.registerConst(c);
         }
       }
       setInstalledBlocks(installed);

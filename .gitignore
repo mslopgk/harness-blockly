@@ -29,3 +29,7 @@ blockpy-config.json
 
 # session artifacts (chat screenshots, bug-report images)
 KakaoTalk_*
+
+# Python bytecode (runtime/ modules)
+__pycache__/
+*.pyc

@@ -1,0 +1,103 @@
+[
+ {
+  "module": "tm",
+  "entries": [
+   {
+    "kind": "class",
+    "name": "Model",
+    "qualName": "tm.Model",
+    "params": [
+     {
+      "name": "labels",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": true
+   },
+   {
+    "kind": "method",
+    "owner": "Model",
+    "name": "add_example",
+    "params": [
+     {
+      "name": "frame",
+      "kind": "positional",
+      "hasDefault": false
+     },
+     {
+      "name": "label",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Model",
+    "name": "train",
+    "params": [],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Model",
+    "name": "predict",
+    "params": [
+     {
+      "name": "frame",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": true
+   },
+   {
+    "kind": "method",
+    "owner": "Model",
+    "name": "predict_proba",
+    "params": [
+     {
+      "name": "frame",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": true
+   },
+   {
+    "kind": "method",
+    "owner": "Model",
+    "name": "save",
+    "params": [
+     {
+      "name": "path",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": false
+   },
+   {
+    "kind": "property",
+    "owner": "Model",
+    "name": "labels",
+    "qualName": "tm.Model.labels"
+   },
+   {
+    "kind": "function",
+    "name": "load_model",
+    "qualName": "tm.load_model",
+    "params": [
+     {
+      "name": "path",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": true
+   }
+  ]
+ }
+]

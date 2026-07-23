@@ -1,0 +1,270 @@
+[
+ {
+  "module": "dobotkit",
+  "entries": [
+   {
+    "kind": "class",
+    "name": "MagicianLite",
+    "qualName": "dobotkit.MagicianLite",
+    "params": [],
+    "returns": true
+   },
+   {
+    "kind": "method",
+    "owner": "Arm",
+    "name": "home",
+    "params": [],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Arm",
+    "name": "move_to",
+    "params": [
+     {
+      "name": "x",
+      "kind": "positional",
+      "hasDefault": false
+     },
+     {
+      "name": "y",
+      "kind": "positional",
+      "hasDefault": false
+     },
+     {
+      "name": "z",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Arm",
+    "name": "move_relative",
+    "params": [
+     {
+      "name": "dx",
+      "kind": "positional",
+      "hasDefault": false
+     },
+     {
+      "name": "dy",
+      "kind": "positional",
+      "hasDefault": false
+     },
+     {
+      "name": "dz",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Arm",
+    "name": "suck",
+    "params": [
+     {
+      "name": "on",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Arm",
+    "name": "grip",
+    "params": [
+     {
+      "name": "on",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Arm",
+    "name": "set_speed",
+    "params": [
+     {
+      "name": "velocity",
+      "kind": "positional",
+      "hasDefault": false
+     },
+     {
+      "name": "acceleration",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Arm",
+    "name": "get_pose",
+    "params": [],
+    "returns": true
+   },
+   {
+    "kind": "function",
+    "name": "open",
+    "module": "dobotkit.MagicianGO",
+    "qualName": "dobotkit.MagicianGO.open",
+    "params": [
+     {
+      "name": "port_name",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": true
+   },
+   {
+    "kind": "method",
+    "owner": "Car",
+    "name": "forward",
+    "params": [
+     {
+      "name": "speed",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Car",
+    "name": "backward",
+    "params": [
+     {
+      "name": "speed",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Car",
+    "name": "spin",
+    "params": [
+     {
+      "name": "speed",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Car",
+    "name": "strafe",
+    "params": [
+     {
+      "name": "speed",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Car",
+    "name": "move",
+    "params": [
+     {
+      "name": "x",
+      "kind": "positional",
+      "hasDefault": false
+     },
+     {
+      "name": "y",
+      "kind": "positional",
+      "hasDefault": false
+     },
+     {
+      "name": "r",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Car",
+    "name": "drive_for",
+    "params": [
+     {
+      "name": "x",
+      "kind": "positional",
+      "hasDefault": false
+     },
+     {
+      "name": "y",
+      "kind": "positional",
+      "hasDefault": false
+     },
+     {
+      "name": "r",
+      "kind": "positional",
+      "hasDefault": false
+     },
+     {
+      "name": "seconds",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Car",
+    "name": "stop",
+    "params": [],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Car",
+    "name": "buzzer",
+    "params": [],
+    "returns": false
+   },
+   {
+    "kind": "method",
+    "owner": "Car",
+    "name": "battery",
+    "params": [],
+    "returns": true
+   },
+   {
+    "kind": "method",
+    "owner": "Car",
+    "name": "ultrasonic",
+    "params": [],
+    "returns": true
+   },
+   {
+    "kind": "method",
+    "owner": "Car",
+    "name": "imu_angle",
+    "params": [],
+    "returns": true
+   }
+  ]
+ }
+]
