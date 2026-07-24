@@ -40,9 +40,9 @@ export default function App() {
 
   // AI 도우미 터미널 패널: 접힘/펼침 + 너비를 localStorage에 유지. terminalEverOpened 는
   // 한 번이라도 열렸으면 true 로 래치되어 <AiTerminal> 을 계속 마운트해둔다(세션/스크롤백 보존).
-  const [terminalOpen, setTerminalOpen] = useState(() => localStorage.getItem('blockpy.terminal.open') === '1');
-  const [terminalWidth, setTerminalWidth] = useState(() => Number(localStorage.getItem('blockpy.terminal.width')) || 380);
-  const [terminalEverOpened, setTerminalEverOpened] = useState(() => localStorage.getItem('blockpy.terminal.open') === '1');
+  const [terminalOpen, setTerminalOpen] = useState(() => localStorage.getItem('blockpy.terminal.open') !== '0');
+  const [terminalWidth, setTerminalWidth] = useState(() => Number(localStorage.getItem('blockpy.terminal.width')) || 460);
+  const [terminalEverOpened, setTerminalEverOpened] = useState(() => localStorage.getItem('blockpy.terminal.open') !== '0');
   useEffect(() => { localStorage.setItem('blockpy.terminal.open', terminalOpen ? '1' : '0'); if (terminalOpen) setTerminalEverOpened(true); }, [terminalOpen]);
   useEffect(() => { localStorage.setItem('blockpy.terminal.width', String(terminalWidth)); }, [terminalWidth]);
 
@@ -843,7 +843,6 @@ for i in range(4):
   const handlePipInstallShell = async () => {
     const pkg = pipPkg.trim();
     if (!pkg) return;
-    setDockOpen(true);
     setLogs((prev) => [...prev, `[pip] Installing: pip install ${pkg} ...`]);
     try {
       const resp = await fetch('/api/pip-install', {
@@ -887,7 +886,6 @@ for i in range(4):
     // the explorer shows matches what executes).
     if (activeFile) { await saveActiveFile({ silent: true }); }
     setLogs([`[Shell] Running real Python (local python + real cv2)${activeFile ? ' on ' + activeFile : ''}. Files resolve against the workspace folder.`, `[Shell] Code:\n${code}`]);
-    setDockOpen(true);
     setIsRunning(true);
     const controller = new AbortController();
     shellAbortRef.current = controller;
@@ -1443,7 +1441,6 @@ for i in range(4):
     : 'No desugarable sugar in safe positions — the desugared output matches the source.';
 
   // ── 시안 B 레이아웃 보조 상태(순수 시각용 — 기존 핸들러/이펙트/엔드포인트 불변, 추가만) ──
-  const [dockOpen, setDockOpen] = useState(true);
   const [auxOpen, setAuxOpen] = useState(false);   // 사이드 도구(파일/AI/로봇/TM 등) 팝업 열림
   useEffect(() => {
     if (!auxOpen) return;
@@ -1461,12 +1458,13 @@ for i in range(4):
   const RAIL_TABS = [
     { key: 'files', label: 'Files', ko: '파일', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M3 7l2-3h6l2 3h6v13H3z" /></svg>) },
     { key: 'variables', label: 'Variable', ko: '변수', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 7h16M4 12h10M4 17h16" /></svg>) },
+    { key: 'logs', label: 'Output', ko: '실행 출력', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 5h16v14H4z" /><path d="M8 9l2 2-2 2M13 13h3" /></svg>) },
     { key: 'gray', label: 'Logs', ko: '변환 로그', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 5h16v11H4z" /><path d="M8 20h8M12 16v4" /></svg>) },
     { key: 'ai', label: 'AI', ko: 'AI', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z" /></svg>) },
     { key: 'robot', label: 'Robot', ko: '로봇', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="5" y="8" width="14" height="10" rx="2" /><path d="M12 8V5M8 13h.01M16 13h.01" /></svg>) },
     { key: 'tm', label: 'TM', ko: 'TM', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="5" width="18" height="12" rx="2" /><circle cx="12" cy="11" r="3" /></svg>) },
   ];
-  const FILES_LABEL = { files: '파일', variables: '변수', logs: '터미널 출력', gray: '변환 로그', ai: 'AI 라이브러리', robot: '로봇 연결', tm: '티처블머신', examples: '예제' };
+  const FILES_LABEL = { files: '파일', variables: '변수', logs: '실행 출력', gray: '변환 로그', ai: 'AI 라이브러리', robot: '로봇 연결', tm: '티처블머신', examples: '예제' };
 
   return (
     <div className="bpy-app">
@@ -1506,8 +1504,8 @@ for i in range(4):
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="2" /><path d="M21 17l-5-5-6 6" /></svg>
           <input id="cv-image-upload" type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload(e.target.files && e.target.files[0])} />
         </label>
-        <button className={`bpy-btn ico ${dockOpen ? 'on' : ''}`} onClick={() => setDockOpen((v) => !v)} aria-label="레이아웃 토글" title="하단 도크 접기/펴기">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 15h18" /></svg>
+        <button className={`bpy-btn ico ${terminalOpen ? 'on' : ''}`} onClick={() => setTerminalOpen((v) => !v)} aria-label="AI 터미널 토글" title="AI 도우미 터미널 접기/펴기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9l3 3-3 3M13 15h4" /></svg>
         </button>
         <button className="bpy-btn ico" onClick={toggleFullscreen} aria-label="전체화면" title="전체화면">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
@@ -1561,6 +1559,9 @@ for i in range(4):
               )}
               {activeAuxTab === 'variables' && (
                 <VariableWatch variables={variables} />
+              )}
+              {activeAuxTab === 'logs' && (
+                <ConsoleLogs logs={logs} onClearConsole={() => setLogs([])} />
               )}
               {activeAuxTab === 'ai' && (
                 <div className="ai-tab-scroll">
@@ -1738,17 +1739,15 @@ for i in range(4):
               </div>
             </div>
           </div>{/* /bpy-views */}
+        </main>{/* /bpy-stage */}
 
-          {/* ── DOCK (230px): 좌 AI 도우미 터미널(다크) · 우 실행 출력 ── */}
-          <div className={`bpy-dock ${dockOpen ? '' : 'bpy-dock-hidden'}`}>
-            <div className="bpy-dock-term">
-              <AiTerminal active={dockOpen} />
-            </div>
-            <div className="bpy-dock-right">
-              <ConsoleLogs logs={logs} onClearConsole={() => setLogs([])} />
-            </div>
-          </div>
-        </main>
+        {/* ── 우측 AI 도우미 터미널 (세로 · 리사이즈 · 크게) ── */}
+        {terminalEverOpened && (
+          <section className={`bpy-termcol ${terminalOpen ? '' : 'bpy-termcol-hidden'}`} style={{ width: terminalWidth }} aria-label="AI 도우미 터미널">
+            <div className="bpy-termcol-resize" onPointerDown={startTerminalResize} title="너비 조절" />
+            <AiTerminal active={terminalOpen} />
+          </section>
+        )}
       </div>{/* /bpy-body */}
 
       {imagePreview && (

@@ -2335,4 +2335,17 @@ body.theme-dark .convert-overlay { background: rgba(20,26,46,.72); }
 @media (prefers-reduced-motion: reduce) { .bpy-aux-backdrop, .bpy-files.bpy-aux-popup.open { animation: none; } }
 /* 좁은 화면에서도 팝업 폭 유지(기존 반응형 files 폭 규칙 무시) */
 @media (max-width: 1180px) { .bpy-files.bpy-aux-popup { width: clamp(360px, 60vw, 720px); } }
+
+/* ── 우측 AI 도우미 터미널 세로 패널(하단 dock 대체, 크게) ──────────────────
+   body = rail | stage | termcol. 폭은 style(terminalWidth 240~800)로, 왼쪽 핸들 드래그. */
+.bpy-termcol {
+  flex: none; position: relative; min-height: 0; align-self: stretch;
+  display: flex; border-radius: 10px; overflow: hidden;
+  background: var(--term-bg); box-shadow: 0 10px 24px rgba(20,26,46,.18);
+}
+.bpy-termcol-hidden { display: none; }
+.bpy-termcol .ai-terminal { flex: 1; min-width: 0; border-radius: 10px; background: var(--term-bg); border: none; }
+.bpy-termcol .ai-terminal-bar { background: #1c2442; color: #dfe7ff; border-bottom: 1px solid var(--term-line); }
+.bpy-termcol-resize { position: absolute; left: 0; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 3; background: transparent; }
+.bpy-termcol-resize:hover { background: rgba(47,111,224,.35); }
 /* 상단바 그림자/과한 라운드 없이 크리스프하게(이미 보더로 구분) */
