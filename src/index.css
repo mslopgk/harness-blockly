@@ -2279,3 +2279,30 @@ body.theme-dark .convert-overlay { background: rgba(20,26,46,.72); }
   .bpy-files { width: 200px; }
   .bpy-rail { width: 60px; }
 }
+
+/* ── De-slop 리파인먼트 ──────────────────────────────────────────────────
+   "모든 곳이 동글동글" = AI 티. 균일한 큰 라운드 → 절제된 스케일(작게+계층),
+   버튼 그라디언트 → 솔리드, 패널 그림자 남발 → 크리스프 보더로 분리(플랫 컬러블록).
+   원형(50%)은 의미 있는 곳(마스코트/아바타/점)만 유지, 블록은 Blockly 자체 라운드 유지. */
+:root {
+  --r-panel: 10px;    /* 구조 패널(rail/files/views/dock) */
+  --r-control: 8px;   /* 버튼/칩/로고 */
+  --r-tab: 8px 8px 0 0;
+}
+/* 패널: 라운드 축소 + 그림자 제거(1px 보더가 분리 담당) */
+.bpy-rail, .bpy-files, .bpy-views, .bpy-dock-right { border-radius: var(--r-panel); box-shadow: none; }
+.bpy-dock-term .ai-terminal { border-radius: var(--r-panel); }
+/* 컨트롤: 살짝만 둥글게 */
+.bpy-btn, .bpy-fchip { border-radius: var(--r-control); }
+.bpy-logo { border-radius: var(--r-control); }
+.bpy-rtab { border-radius: 9px; }
+.bpy-vtabs .tab-btn { border-radius: var(--r-tab); }
+.bpy-pill { border-radius: 6px; }
+/* 그라디언트 → 솔리드 (토이/AI 광택 제거), 컬러 글로우 그림자 제거 */
+.bpy-btn.run, .bpy-btn.run:hover:not(:disabled) { background: #46b562; border-color: #379a50; box-shadow: none; }
+.bpy-btn.conv, .bpy-btn.conv:hover:not(:disabled) { background: var(--accent); border-color: var(--accent-d); box-shadow: none; }
+.bpy-rtab.on { background: var(--accent-wash); box-shadow: inset 0 0 0 1.5px #cfe1ff; }
+.bpy-logo { background: var(--accent); box-shadow: none; }
+.bpy-avatar { background: var(--warning); box-shadow: none; }
+.bpy-mascot { background: var(--surface-soft); border: 1px solid var(--line); box-shadow: none; }
+/* 상단바 그림자/과한 라운드 없이 크리스프하게(이미 보더로 구분) */
