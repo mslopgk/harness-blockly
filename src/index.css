@@ -2010,9 +2010,9 @@ select:focus, .pip-input:focus {
    ══════════════════════════════════════════════════════════════════════════ */
 :root {
   /* B 코어 토큰 */
-  --bg:#eef3fb; --bg-glow:#dfeafe; --panel:#ffffff; --ink:#1f2b46; --muted:#7c89a6; --line:#e3e9f4;
-  --accent:#4d97ff; --accent-d:#2f7cf0; --accent-wash:#eaf2ff;
-  --run:#4fbf6a; --run-d:#3faa58; --stop:#eb5757;
+  --bg:#f6f6f4; --bg-glow:#f2f2ef; --panel:#ffffff; --ink:#1b1e24; --muted:#6c707a; --line:#e6e5e0;
+  --accent:#2f6fe0; --accent-d:#1e4fb0; --accent-wash:#eaf1fc;
+  --run:#2e9e5b; --run-d:#23884c; --stop:#e5484d;
   /* Blockly 카테고리 팔레트 */
   --c-motion:#4c97ff; --c-looks:#9966ff; --c-sound:#cf63cf; --c-events:#ffbf00;
   --c-control:#ffab19; --c-sensing:#5cb1d6; --c-oper:#59c059; --c-vars:#ff8c1a; --c-myblk:#ff6680;
@@ -2022,17 +2022,17 @@ select:focus, .pip-input:focus {
   --term-g:#78e6a6; --term-b:#6fb6ff; --term-y:#ffd97a; --term-m:#c79cff; --term-d:#6b789e;
 
   /* 레거시 토큰 이름 → B 톤 리맵 (기존 컴포넌트 규칙 호환, 하드코딩 hex 지양) */
-  --canvas:#f6f9fe; --surface-soft:#f2f6fd; --surface-card:#eaf2ff; --surface-cream-strong:#dcebff;
+  --canvas:#f8f8f6; --surface-soft:#f1f1ee; --surface-card:#edece8; --surface-cream-strong:#e6e5e0;
   --surface-dark:#141a2e; --surface-dark-elevated:#1c2540; --surface-dark-soft:#1b2340;
-  --bg-app:#eef3fb; --bg-panel:#ffffff; --bg-card:#ffffff;
-  --hairline:#e3e9f4; --hairline-soft:#eef2fa; --border-glow:#e3e9f4; --border-neon:#e3e9f4; --border-card:#e3e9f4;
-  --coral:#4d97ff; --coral-active:#2f7cf0; --coral-disabled:#dbe4f2;
-  --accent-teal:#14b8a6; --accent-amber:#ffab19;
-  --neon-cyan:#4d97ff; --neon-purple:#9966ff; --neon-pink:#ff6680; --neon-teal:#14b8a6; --neon-yellow:#ff8c1a; --neon-green:#4fbf6a;
-  --text-primary:#1f2b46; --text-secondary:#42506e; --text-muted:#7c89a6;
-  --on-dark:#eef3fb; --on-dark-soft:#9fb0d0;
-  --success:#4fbf6a; --warning:#ffab19; --error:#eb5757;
-  --active-highlight: rgba(77,151,255,.12);
+  --bg-app:#f6f6f4; --bg-panel:#ffffff; --bg-card:#ffffff;
+  --hairline:#e6e5e0; --hairline-soft:#eeede9; --border-glow:#e6e5e0; --border-neon:#e6e5e0; --border-card:#e6e5e0;
+  --coral:#2f6fe0; --coral-active:#1e4fb0; --coral-disabled:#dcdcd6;
+  --accent-teal:#2f6fe0; --accent-amber:#2f6fe0;
+  --neon-cyan:#2f6fe0; --neon-purple:#2f6fe0; --neon-pink:#2f6fe0; --neon-teal:#2f6fe0; --neon-yellow:#2f6fe0; --neon-green:#2e9e5b;
+  --text-primary:#1b1e24; --text-secondary:#3a3d44; --text-muted:#6c707a;
+  --on-dark:#f0f1f4; --on-dark-soft:#9aa0ac;
+  --success:#2e9e5b; --warning:#d99a1f; --error:#e5484d;
+  --active-highlight: rgba(47,111,224,.10);
   --font-sans:"Pretendard","Malgun Gothic","Apple SD Gothic Neo",system-ui,-apple-system,sans-serif;
   --font-serif:"Pretendard","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;
   --font-mono:"D2Coding","Consolas","Menlo",ui-monospace,monospace;
@@ -2299,10 +2299,12 @@ body.theme-dark .convert-overlay { background: rgba(20,26,46,.72); }
 .bpy-vtabs .tab-btn { border-radius: var(--r-tab); }
 .bpy-pill { border-radius: 6px; }
 /* 그라디언트 → 솔리드 (토이/AI 광택 제거), 컬러 글로우 그림자 제거 */
-.bpy-btn.run, .bpy-btn.run:hover:not(:disabled) { background: #46b562; border-color: #379a50; box-shadow: none; }
+.bpy-btn.run, .bpy-btn.run:hover:not(:disabled) { background: var(--run); border-color: var(--run-d); box-shadow: none; }
 .bpy-btn.conv, .bpy-btn.conv:hover:not(:disabled) { background: var(--accent); border-color: var(--accent-d); box-shadow: none; }
-.bpy-rtab.on { background: var(--accent-wash); box-shadow: inset 0 0 0 1.5px #cfe1ff; }
+.bpy-rtab.on { background: var(--accent-wash); box-shadow: inset 0 0 0 1.5px #cfdcf6; }
 .bpy-logo { background: var(--accent); box-shadow: none; }
-.bpy-avatar { background: var(--warning); box-shadow: none; }
+.bpy-avatar { background: var(--surface-card); color: var(--muted); box-shadow: none; }
 .bpy-mascot { background: var(--surface-soft); border: 1px solid var(--line); box-shadow: none; }
+/* 크롬에서 블록 카테고리 색 누수 제거: 파일칩 상태점은 세맨틱 초록으로 */
+.bpy-fchip-dot { background: var(--run); }
 /* 상단바 그림자/과한 라운드 없이 크리스프하게(이미 보더로 구분) */
