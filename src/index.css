@@ -2002,3 +2002,280 @@ select:focus, .pip-input:focus {
 .ai-terminal-title i { margin-right: 0.4rem; }
 .ai-terminal-screen { flex: 1; min-height: 0; padding: 0.4rem; }
 .ai-terminal-screen .xterm, .ai-terminal-screen .xterm-viewport { height: 100% !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   시안 B — "놀이형 IDE" 디자인 시스템 (소스오브트루스: docs/.../B-design-system.md)
+   Scratch/Bitblock 톤. 이 블록은 파일 최하단에 위치해 동일 특이성에서 레거시 규칙을
+   덮어쓴다(토큰 리맵 + 새 레이아웃). 컴포넌트는 토큰만 참조.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* B 코어 토큰 */
+  --bg:#eef3fb; --bg-glow:#dfeafe; --panel:#ffffff; --ink:#1f2b46; --muted:#7c89a6; --line:#e3e9f4;
+  --accent:#4d97ff; --accent-d:#2f7cf0; --accent-wash:#eaf2ff;
+  --run:#4fbf6a; --run-d:#3faa58; --stop:#eb5757;
+  /* Blockly 카테고리 팔레트 */
+  --c-motion:#4c97ff; --c-looks:#9966ff; --c-sound:#cf63cf; --c-events:#ffbf00;
+  --c-control:#ffab19; --c-sensing:#5cb1d6; --c-oper:#59c059; --c-vars:#ff8c1a; --c-myblk:#ff6680;
+  --c-dobot:#14b8a6; --c-tm:#b94fbb;
+  /* 터미널(다크) */
+  --term-bg:#141a2e; --term-line:#24304f; --term-ink:#c9d6f5;
+  --term-g:#78e6a6; --term-b:#6fb6ff; --term-y:#ffd97a; --term-m:#c79cff; --term-d:#6b789e;
+
+  /* 레거시 토큰 이름 → B 톤 리맵 (기존 컴포넌트 규칙 호환, 하드코딩 hex 지양) */
+  --canvas:#f6f9fe; --surface-soft:#f2f6fd; --surface-card:#eaf2ff; --surface-cream-strong:#dcebff;
+  --surface-dark:#141a2e; --surface-dark-elevated:#1c2540; --surface-dark-soft:#1b2340;
+  --bg-app:#eef3fb; --bg-panel:#ffffff; --bg-card:#ffffff;
+  --hairline:#e3e9f4; --hairline-soft:#eef2fa; --border-glow:#e3e9f4; --border-neon:#e3e9f4; --border-card:#e3e9f4;
+  --coral:#4d97ff; --coral-active:#2f7cf0; --coral-disabled:#dbe4f2;
+  --accent-teal:#14b8a6; --accent-amber:#ffab19;
+  --neon-cyan:#4d97ff; --neon-purple:#9966ff; --neon-pink:#ff6680; --neon-teal:#14b8a6; --neon-yellow:#ff8c1a; --neon-green:#4fbf6a;
+  --text-primary:#1f2b46; --text-secondary:#42506e; --text-muted:#7c89a6;
+  --on-dark:#eef3fb; --on-dark-soft:#9fb0d0;
+  --success:#4fbf6a; --warning:#ffab19; --error:#eb5757;
+  --active-highlight: rgba(77,151,255,.12);
+  --font-sans:"Pretendard","Malgun Gothic","Apple SD Gothic Neo",system-ui,-apple-system,sans-serif;
+  --font-serif:"Pretendard","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;
+  --font-mono:"D2Coding","Consolas","Menlo",ui-monospace,monospace;
+  --shadow-neon:0 2px 8px rgba(31,43,70,.06); --shadow-neon-purple:0 2px 8px rgba(31,43,70,.06);
+  --shadow-card:0 2px 10px rgba(31,43,70,.05);
+  --transition-speed:.18s;
+}
+
+body.theme-dark {
+  --bg:#141a2e; --bg-glow:#1c2540; --panel:#1b2340; --ink:#e7edfb; --muted:#8695b8; --line:#2a3556; --accent-wash:#22304f;
+  --canvas:#161d33; --surface-soft:#1b2340; --surface-card:#232d4e; --surface-cream-strong:#2a3556;
+  --bg-app:#0f1424; --bg-panel:#1b2340; --bg-card:#1b2340;
+  --hairline:#2a3556; --hairline-soft:#232d4e; --border-card:#2a3556; --border-glow:#2a3556; --border-neon:#2a3556;
+  --text-primary:#e7edfb; --text-secondary:#c3cde6; --text-muted:#8695b8;
+  --neon-cyan:#6fb6ff;
+  --active-highlight: rgba(77,151,255,.22);
+  --shadow-card:0 2px 12px rgba(0,0,0,.42);
+}
+
+body { font-family: var(--font-sans); background: var(--bg-app); color: var(--ink); overflow: hidden; }
+
+/* ── App frame ─────────────────────────────────────────────────────────── */
+.bpy-app {
+  height: 100vh; width: 100%; display: flex; flex-direction: column; overflow: hidden;
+  color: var(--ink); font-family: var(--font-sans);
+  background: radial-gradient(1200px 600px at 15% -10%, var(--bg-glow) 0%, var(--bg) 55%);
+}
+
+/* ── Top bar ───────────────────────────────────────────────────────────── */
+.bpy-topbar {
+  height: 60px; flex: none; background: var(--panel); border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 10px; padding: 0 16px; z-index: 5;
+}
+.bpy-brand { display: flex; align-items: center; gap: 9px; padding-right: 6px; flex: none; }
+.bpy-logo {
+  width: 38px; height: 38px; border-radius: 12px; flex: none;
+  background: linear-gradient(135deg, #5aa2ff, #4d97ff 60%, #9966ff);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 6px 14px rgba(77,151,255,.4);
+}
+.bpy-logo svg { width: 20px; height: 20px; }
+.bpy-brand-text b { font-size: 19px; font-weight: 800; letter-spacing: -.5px; line-height: 1.05; display: block; color: var(--ink); }
+.bpy-brand-text span { font-size: 11px; color: var(--muted); font-weight: 600; display: block; margin-top: -1px; }
+.bpy-fchip {
+  display: flex; align-items: center; gap: 8px; background: var(--surface-soft);
+  border: 1px solid var(--line); padding: 7px 13px; border-radius: 12px;
+  font-weight: 700; font-size: 13px; color: var(--ink); white-space: nowrap;
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; flex: none;
+}
+.bpy-fchip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c-oper); flex: none; }
+.bpy-fchip small { color: var(--muted); font-weight: 600; }
+.bpy-topbar-sp { flex: 1 1 auto; min-width: 8px; }
+.bpy-topbar-div { width: 1px; height: 26px; background: var(--line); margin: 0 2px; flex: none; }
+.bpy-avatar {
+  width: 34px; height: 34px; border-radius: 50%; margin-left: 4px; flex: none;
+  background: linear-gradient(135deg, #ffd76b, #ff9f43);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 800; color: #fff;
+}
+
+/* Top-bar buttons */
+.bpy-btn {
+  display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line);
+  background: var(--panel); padding: 8px 13px; border-radius: 12px;
+  font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; white-space: nowrap;
+  font-family: var(--font-sans); transition: filter .15s, background .15s, border-color .15s;
+}
+.bpy-btn svg { width: 16px; height: 16px; }
+.bpy-btn.ico { padding: 8px; }
+.bpy-btn:hover:not(:disabled) { background: var(--surface-soft); }
+.bpy-btn:disabled { opacity: .45; cursor: not-allowed; }
+.bpy-btn.ico.on { background: var(--accent-wash); border-color: #cfe1ff; color: var(--accent-d); }
+.bpy-btn.save { background: var(--surface-soft); }
+.bpy-btn.run {
+  background: linear-gradient(180deg, #68d67f, #4fbf6a); border-color: var(--run-d); color: #fff;
+  box-shadow: 0 5px 12px rgba(79,191,106,.4); font-size: 14px; padding: 9px 18px;
+}
+.bpy-btn.run:hover:not(:disabled) { filter: brightness(1.04); background: linear-gradient(180deg, #68d67f, #4fbf6a); }
+.bpy-btn.stop { background: var(--panel); border-color: #ffd3d3; color: var(--stop); }
+.bpy-btn.stop:hover:not(:disabled) { background: #fff4f4; }
+.bpy-btn.conv {
+  background: linear-gradient(180deg, #8fb9ff, #4d97ff); border-color: var(--accent-d); color: #fff;
+  box-shadow: 0 5px 12px rgba(77,151,255,.35);
+}
+.bpy-btn.conv:hover:not(:disabled) { filter: brightness(1.04); background: linear-gradient(180deg, #8fb9ff, #4d97ff); }
+.bpy-btn:focus-visible { outline: 3px solid rgba(77,151,255,.4); outline-offset: 1px; }
+
+/* ── Body: rail | files | stage ─────────────────────────────────────────── */
+.bpy-body { flex: 1; display: flex; gap: 12px; padding: 12px; min-height: 0; min-width: 0; }
+
+/* Rail (66px) */
+.bpy-rail {
+  width: 66px; flex: none; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 18px; display: flex; flex-direction: column; align-items: center;
+  padding: 10px 0 12px; gap: 6px; box-shadow: var(--shadow-card);
+}
+.bpy-rtab {
+  width: 50px; height: 52px; border-radius: 14px; border: none; background: transparent;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  cursor: pointer; color: var(--muted); font-size: 9.5px; font-weight: 700; font-family: var(--font-sans);
+  transition: background .12s, color .12s;
+}
+.bpy-rtab svg { width: 20px; height: 20px; }
+.bpy-rtab:hover:not(.on) { background: var(--surface-soft); color: var(--ink); }
+.bpy-rtab.on {
+  background: linear-gradient(180deg, #eaf2ff, #dcebff); color: var(--accent-d);
+  box-shadow: inset 0 0 0 1.5px #cfe1ff;
+}
+body.theme-dark .bpy-rtab.on { background: var(--accent-wash); box-shadow: inset 0 0 0 1.5px #33507f; color: #9fc4ff; }
+.bpy-rtab:focus-visible { outline: 3px solid rgba(77,151,255,.4); outline-offset: 1px; }
+.bpy-mascot {
+  margin-top: auto; width: 46px; height: 46px; border-radius: 50%; overflow: hidden;
+  background: linear-gradient(135deg, #ffe3ef, #ffd0e2);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 10px rgba(255,102,128,.25); flex: none;
+}
+.bpy-mascot img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Files column (236px) */
+.bpy-files {
+  width: 236px; flex: none; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 18px; display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: var(--shadow-card); min-height: 0;
+}
+.bpy-files-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 15px 9px; flex: none;
+}
+.bpy-files-head b { font-size: 14px; font-weight: 800; color: var(--ink); }
+.bpy-pill {
+  font-size: 10px; font-weight: 700; color: var(--accent-d); background: var(--accent-wash);
+  padding: 3px 8px; border-radius: 20px;
+}
+.bpy-files .tab-content-wrapper { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.bpy-files .tab-content-wrapper > * { flex: 1 1 auto; min-height: 0; }
+/* 내부 컴포넌트의 카드 크롬 제거(패널이 이미 카드) */
+.bpy-files .console-card, .bpy-files .watch-card, .bpy-files .library-card,
+.bpy-files .editor-card, .bpy-files .fx-card {
+  border: none; border-radius: 0; box-shadow: none; background: transparent; height: 100%; min-height: 0;
+}
+.bpy-files .console-card:hover, .bpy-files .watch-card:hover, .bpy-files .library-card:hover { border-color: transparent; }
+.bpy-files .examples-tab-scroll, .bpy-files .robot-tab-scroll, .bpy-files .tm-tab-scroll,
+.bpy-files .ai-tab-scroll, .bpy-files .gray-blocks-panel { overflow-y: auto; }
+
+/* ── Stage ─────────────────────────────────────────────────────────────── */
+.bpy-stage { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.bpy-views {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+  display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.bpy-vtabs {
+  display: flex; gap: 6px; padding: 10px 12px 0; border-bottom: 1px solid var(--line);
+  align-items: center; flex: none; overflow-x: auto; scrollbar-width: thin;
+}
+/* View tabs reuse .tab-btn — restyle to B chip tabs */
+.bpy-vtabs .tab-btn {
+  padding: 9px 15px; border-radius: 12px 12px 0 0; font-size: 13px; font-weight: 700;
+  color: var(--muted); border: none; background: transparent; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 7px; position: relative;
+}
+.bpy-vtabs .tab-btn i { font-size: 13px; }
+.bpy-vtabs .tab-btn:hover { color: var(--ink); }
+.bpy-vtabs .tab-btn.active { background: var(--accent-wash); color: var(--accent-d); box-shadow: inset 0 -2px 0 var(--accent); }
+.bpy-vtabs .tab-btn.active::after { content: none; }
+
+/* editor content fills the views card */
+.bpy-views .editor-content-wrapper { flex: 1; min-height: 0; }
+.bpy-views .editor-card, .bpy-views .blockly-card {
+  border: none; border-radius: 0; box-shadow: none; background: transparent; height: 100%;
+}
+.bpy-views .editor-card:hover, .bpy-views .blockly-card:hover { border-color: transparent; }
+.bpy-views #blockly-div { background: #fbfcff !important; }
+body.theme-dark .bpy-views #blockly-div { background: #12182b !important; }
+
+/* ── Dock (230px) ──────────────────────────────────────────────────────── */
+.bpy-dock { height: 230px; flex: none; display: flex; gap: 12px; min-height: 0; }
+.bpy-dock-hidden { display: none; }
+.bpy-dock-term { flex: 1.5; min-width: 0; display: flex; }
+.bpy-dock-right {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-card);
+}
+.bpy-dock-term .ai-terminal {
+  flex: 1; border-radius: 18px; background: var(--term-bg); overflow: hidden;
+  box-shadow: 0 10px 24px rgba(20,26,46,.3); border: none;
+}
+.bpy-dock-term .ai-terminal-bar { background: #1c2442; color: #dfe7ff; border-bottom: 1px solid var(--term-line); }
+.bpy-dock-right .console-card {
+  border: none; border-radius: 0; box-shadow: none; background: transparent; height: 100%; min-height: 0;
+}
+.bpy-dock-right .console-card:hover { border-color: transparent; }
+.bpy-dock-right .console-body { background: transparent; }
+
+/* ── Shared panel chrome → B tone ──────────────────────────────────────── */
+.panel-header, .card-header {
+  background: var(--surface-soft); border-bottom: 1px solid var(--line); padding: 0.55rem 0.9rem;
+}
+.panel-title-group h3, .panel-title-group i { color: var(--ink); }
+.panel-title-group h3 { font-family: var(--font-sans); font-weight: 700; font-size: 0.95rem; letter-spacing: -0.2px; }
+h1, h2, h3 { font-family: var(--font-sans); }
+.box-title, .ai-panel-title { font-family: var(--font-sans); color: var(--ink); }
+.tab-btn.active { color: var(--accent-d); }
+.tab-btn.active::after { background: var(--accent); box-shadow: none; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-d); }
+.badge-success { background: #e8f8ee; color: var(--run-d); border-color: #bfe9cd; }
+.badge-error { background: #fdecec; color: var(--stop); border-color: #f6c9c9; }
+
+/* Buttons rounder (legacy .btn used inside panels) */
+.btn { border-radius: 10px; font-family: var(--font-sans); }
+
+/* ── Blockly toolbox (B tone) ──────────────────────────────────────────── */
+.blocklyToolboxDiv, .blocklyToolbox { background: var(--panel) !important; border-right: 1px solid var(--line); }
+.blocklyToolboxCategory {
+  min-height: 42px !important; border-left-width: 6px !important;   /* Blockly가 이 border-left-color에 카테고리 --c-* 색을 인라인 지정 → 색 액센트로 노출 */
+  border-bottom: 1px solid var(--hairline-soft); border-radius: 12px !important;
+  margin: 3px 8px !important; padding: 7px 10px !important; position: relative;
+}
+.blocklyToolboxCategoryContainer:hover > .blocklyToolboxCategory { background: var(--surface-soft) !important; }
+.blocklyToolboxCategoryContainer[aria-selected="true"] > .blocklyToolboxCategory { background: var(--accent-wash) !important; }
+/* colour dot (from Blockly's inline category colour on the left border) */
+.blocklyToolboxCategoryLabel { font-family: var(--font-sans) !important; font-size: 13px !important; font-weight: 700 !important; }
+.blocklyFlyoutBackground { fill: #eef4ff !important; }
+body.theme-dark .blocklyFlyoutBackground { fill: #161d33 !important; }
+
+/* ── AI terminal xterm colours already dark; align bg token ────────────── */
+.ai-terminal { background: var(--term-bg); }
+.ai-terminal-bar { background: #1c2442; color: var(--term-ink); }
+
+/* ── Convert overlay on the light B surface ────────────────────────────── */
+.convert-overlay { background: rgba(238,243,251,.72); }
+body.theme-dark .convert-overlay { background: rgba(20,26,46,.72); }
+.convert-spinner { border-color: rgba(77,151,255,.22); border-top-color: var(--accent); }
+.convert-overlay-text { color: var(--accent-d); }
+
+/* ── Reduced motion ────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+
+/* ── Responsive guard: never let the body scroll horizontally ──────────── */
+@media (max-width: 1180px) {
+  .bpy-files { width: 200px; }
+  .bpy-rail { width: 60px; }
+}

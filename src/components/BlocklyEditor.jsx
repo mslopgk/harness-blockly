@@ -21,17 +21,17 @@ export default function BlocklyEditor({
       return window.Blockly.Theme.defineTheme('scratch_light', {
         'base': base,
         'componentStyles': {
-          'workspaceBackgroundColour': '#faf9f5',
+          'workspaceBackgroundColour': '#fbfcff',
           'toolboxBackgroundColour': '#ffffff',
-          'toolboxForegroundColour': '#3d3d3a',
-          'flyoutBackgroundColour': '#f5f0e8',
-          'flyoutForegroundColour': '#3d3d3a',
+          'toolboxForegroundColour': '#42506e',
+          'flyoutBackgroundColour': '#eef4ff',
+          'flyoutForegroundColour': '#42506e',
           'flyoutOpacity': 1,
-          'scrollbarColour': '#e6dfd8',
+          'scrollbarColour': '#cfe1ff',
           'scrollbarOpacity': 0.8,
-          'insertionMarkerColour': '#cc785c',
-          'insertionMarkerOpacity': 0.3,
-          'cursorColour': '#cc785c'
+          'insertionMarkerColour': '#4d97ff',
+          'insertionMarkerOpacity': 0.35,
+          'cursorColour': '#4d97ff'
         },
         'blockStyles': {
           'logic_blocks': { 'colourPrimary': '#4C97FF' },

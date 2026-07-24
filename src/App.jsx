@@ -1442,77 +1442,99 @@ for i in range(4):
     ? 'Desugared (IR-level): comprehensions / ternaries / chained comparisons in provably-safe positions were rewritten to loops / conditionals / booleans; lazy or unsafe sugar is preserved.'
     : 'No desugarable sugar in safe positions — the desugared output matches the source.';
 
-  return (
-    <div className="harness-container">
-      {/* Header bar removed — Auto Desugar + theme controls relocated into the
-          AST Parser Tree tab to reclaim full-height vertical space. */}
+  // ── 시안 B 레이아웃 보조 상태(순수 시각용 — 기존 핸들러/이펙트/엔드포인트 불변, 추가만) ──
+  const [dockOpen, setDockOpen] = useState(true);
+  const toggleFullscreen = () => {
+    try {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+    } catch (_) { /* 미지원 환경 무시 */ }
+  };
+  // rail(66px) 세로 아이콘 탭 7개 — 기존 activeAuxTab 값에 그대로 매핑(Terminal→logs, Logs→gray).
+  const RAIL_TABS = [
+    { key: 'files', label: 'Files', ko: '파일', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M3 7l2-3h6l2 3h6v13H3z" /></svg>) },
+    { key: 'variables', label: 'Variable', ko: '변수', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 7h16M4 12h10M4 17h16" /></svg>) },
+    { key: 'logs', label: 'Terminal', ko: '터미널', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9l3 3-3 3M13 15h4" /></svg>) },
+    { key: 'gray', label: 'Logs', ko: '로그', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 5h16v11H4z" /><path d="M8 20h8M12 16v4" /></svg>) },
+    { key: 'ai', label: 'AI', ko: 'AI', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z" /></svg>) },
+    { key: 'robot', label: 'Robot', ko: '로봇', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="5" y="8" width="14" height="10" rx="2" /><path d="M12 8V5M8 13h.01M16 13h.01" /></svg>) },
+    { key: 'tm', label: 'TM', ko: 'TM', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="5" width="18" height="12" rx="2" /><circle cx="12" cy="11" r="3" /></svg>) },
+  ];
+  const FILES_LABEL = { files: '파일', variables: '변수', logs: '터미널 출력', gray: '변환 로그', ai: 'AI 라이브러리', robot: '로봇 연결', tm: '티처블머신', examples: '예제' };
 
-      {/* Main Dashboard Layout grid */}
-      <main className="dashboard-grid" style={{ gridTemplateColumns: `380px minmax(0, 1fr) ${terminalOpen ? terminalWidth + 'px' : '2.25rem'}` }}>
-        {/* Left Side Panels: Stage, console, scopes, abstractions */}
-        <section className="left-panel">
-          {/* Unified left pane — Stage + watches + logs + gray blocks + AI/OpenCV, all as tabs */}
-          <div className="tab-card">
-            <div className="tab-header">
+  return (
+    <div className="bpy-app">
+      {/* ── TOP BAR (60px) ─────────────────────────────────────── */}
+      <header className="bpy-topbar">
+        <div className="bpy-brand">
+          <div className="bpy-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="3" y="3" width="8" height="8" rx="2" /><rect x="13" y="13" width="8" height="8" rx="2" /><path d="M13 5h6M16 3v6M5 13v6M3 16h6" /></svg>
+          </div>
+          <div className="bpy-brand-text"><b>BlockPy</b><span>부산과학관 AI·로보틱스</span></div>
+        </div>
+        <div className="bpy-fchip" title={activeFile || '열린 파일 없음'}>
+          <span className="bpy-fchip-dot" />{activeFile || 'untitled'}<small>프로젝트</small>
+        </div>
+
+        <div className="bpy-topbar-sp" />
+
+        <button className="bpy-btn save" onClick={() => saveActiveFile()} disabled={!activeFile} aria-label="저장" title="저장 (Ctrl+S)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M5 3h11l3 3v15H5z" /><path d="M8 3v6h7" /></svg>저장
+        </button>
+        <button className="bpy-btn run" onClick={handleRunShell} disabled={isRunning} aria-label="실행" title="실제 파이썬으로 실행">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>실행
+        </button>
+        <button className="bpy-btn stop" onClick={handleStopExecution} disabled={!isRunning} aria-label="정지" title="실행 중지">
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>정지
+        </button>
+        <button className="bpy-btn conv" onClick={handleSyncToBlocksClick} aria-label="변환" title="파이썬 → 블록 변환">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M7 8l-4 4 4 4" /><path d="M17 8l4 4-4 4" /><path d="M14 4l-4 16" /></svg>변환
+        </button>
+
+        <span className="bpy-topbar-div" />
+
+        <button className="bpy-btn" onClick={() => setActiveAuxTab('examples')} aria-label="예제" title="예제 코드 불러오기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 5h16v14H4z" /><path d="M4 9h16" /></svg>예제
+        </button>
+        <label className="bpy-btn ico" htmlFor="cv-image-upload" aria-label="이미지 삽입" title="이미지 삽입">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="2" /><path d="M21 17l-5-5-6 6" /></svg>
+          <input id="cv-image-upload" type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload(e.target.files && e.target.files[0])} />
+        </label>
+        <button className={`bpy-btn ico ${dockOpen ? 'on' : ''}`} onClick={() => setDockOpen((v) => !v)} aria-label="레이아웃 토글" title="하단 도크 접기/펴기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 15h18" /></svg>
+        </button>
+        <button className="bpy-btn ico" onClick={toggleFullscreen} aria-label="전체화면" title="전체화면">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+        </button>
+        <div className="bpy-avatar" aria-hidden="true">지</div>
+      </header>
+
+      {/* ── BODY: rail | files | stage ─────────────────────────── */}
+      <div className="bpy-body">
+        {/* SIDE RAIL — 7 아이콘 탭 + 마스코트 */}
+        <nav className="bpy-rail" aria-label="사이드 패널 전환">
+          {RAIL_TABS.map((t) => {
+            const on = activeAuxTab === t.key;
+            return (
               <button
-                id="tab-btn-files"
-                className={`tab-btn ${activeAuxTab === 'files' ? 'active' : ''}`}
-                onClick={() => setActiveAuxTab('files')}
+                key={t.key}
+                className={`bpy-rtab ${on ? 'on' : ''}`}
+                aria-label={t.label}
+                aria-pressed={on}
+                onClick={() => { setActiveAuxTab(t.key); if (t.key === 'gray') refreshGrayBlocks(); }}
               >
-                Files
+                {t.icon}<span>{t.ko}{t.key === 'gray' && grayBlocks.length ? ` ${grayBlocks.length}` : ''}</span>
               </button>
-              <button
-                id="tab-btn-variables"
-                className={`tab-btn ${activeAuxTab === 'variables' ? 'active' : ''}`}
-                onClick={() => setActiveAuxTab('variables')}
-              >
-                Variable
-              </button>
-              <button
-                id="tab-btn-logs"
-                className={`tab-btn ${activeAuxTab === 'logs' ? 'active' : ''}`}
-                onClick={() => setActiveAuxTab('logs')}
-              >
-                Terminal
-              </button>
-              <button
-                id="tab-btn-gray"
-                className={`tab-btn ${activeAuxTab === 'gray' ? 'active' : ''}`}
-                onClick={() => { setActiveAuxTab('gray'); refreshGrayBlocks(); }}
-                title="Parts left as gray (raw) blocks that could not convert to dedicated blocks"
-              >
-                Logs{grayBlocks.length ? ` (${grayBlocks.length})` : ''}
-              </button>
-              <button
-                id="tab-btn-library"
-                className={`tab-btn ${activeAuxTab === 'ai' ? 'active' : ''}`}
-                onClick={() => setActiveAuxTab('ai')}
-              >
-                AI
-              </button>
-              <button
-                id="tab-btn-robot"
-                className={`tab-btn ${activeAuxTab === 'robot' ? 'active' : ''}`}
-                onClick={() => setActiveAuxTab('robot')}
-              >
-                Robot
-              </button>
-              <button
-                id="tab-btn-tm"
-                className={`tab-btn ${activeAuxTab === 'tm' ? 'active' : ''}`}
-                onClick={() => setActiveAuxTab('tm')}
-              >
-                TM
-              </button>
-              <button
-                id="tab-btn-examples"
-                className={`tab-btn ${activeAuxTab === 'examples' ? 'active' : ''}`}
-                onClick={() => setActiveAuxTab('examples')}
-                title="예제 코드 불러오기 (기초·데이터·OpenCV·수업 등)"
-              >
-                예제
-              </button>
-            </div>
+            );
+          })}
+          <div className="bpy-mascot" title="BlockPy">
+            <img src="/assets/mascot/mascot-hero.png" alt="BlockPy 마스코트" />
+          </div>
+        </nav>
+
+        {/* FILES COLUMN — 선택된 사이드탭 패널 */}
+        <aside className="bpy-files">
+          <div className="bpy-files-head"><b>{FILES_LABEL[activeAuxTab] || '패널'}</b><span className="bpy-pill">내 프로젝트</span></div>
             <div className="tab-content-wrapper">
               {activeAuxTab === 'files' && (
                 <FileExplorer
@@ -1593,13 +1615,12 @@ for i in range(4):
                 </div>
               )}
             </div>
-          </div>
-        </section>
+        </aside>
 
-        {/* Right Side Panels: Interactive Editors, desugaring analysis */}
-        <section className="right-panel">
-          <div className="editor-tab-card" style={{ flex: 1, height: '100%' }}>
-            <div className="editor-tab-header">
+        {/* STAGE: views(뷰 4개) + dock(AI 터미널 + 실행 출력) */}
+        <main className="bpy-stage">
+          <div className="bpy-views">
+            <div className="bpy-vtabs">
               <button 
                 id="tab-btn-blockly"
                 className={`tab-btn ${activeEditorTab === 'blockly' ? 'active' : ''}`}
@@ -1628,63 +1649,10 @@ for i in range(4):
               >
                 <i className="fa-solid fa-diagram-project"></i> AST Parser Tree
               </button>
-              {/* Active file + Save + Run (real shell) + image upload */}
-              <div className="editor-tab-actions">
-                <span className="active-file-chip" title={activeFile || 'No file open — open one from the Files tab'}>
-                  <i className="fa-solid fa-file-code"></i>
-                  {activeFile || 'untitled'}
-                </span>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  id="btn-save-file"
-                  onClick={() => saveActiveFile()}
-                  disabled={!activeFile}
-                  title="Save the open file (Ctrl+S)"
-                >
-                  <i className="fa-solid fa-floppy-disk"></i> Save
-                </button>
-                <button
-                  className="btn btn-primary btn-sm"
-                  id="btn-run-shell"
-                  onClick={handleRunShell}
-                  disabled={isRunning}
-                  title="Run for real in local Python (shell). Files resolve against the workspace folder."
-                >
-                  <i className="fa-solid fa-play"></i> Run
-                </button>
-                <button
-                  className="btn btn-action stop btn-sm"
-                  id="btn-stop-shell"
-                  onClick={handleStopExecution}
-                  disabled={!isRunning}
-                  title="Stop the running program"
-                >
-                  <i className="fa-solid fa-stop"></i>
-                </button>
-                {(typeof window !== 'undefined' && ((window.BlockPyExamples && window.BlockPyExamples.length > 0) || (window.BlockPyLessonExamples && window.BlockPyLessonExamples.length > 0))) && (
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    id="btn-examples"
-                    onClick={() => setActiveAuxTab('examples')}
-                    title="예제 탭 열기 (좌측 패널)"
-                  >
-                    <i className="fa-solid fa-book-open"></i> 예제
-                  </button>
-                )}
-                <label className="btn btn-secondary btn-sm" htmlFor="cv-image-upload" style={{ cursor: 'pointer' }}>
-                  <i className="fa-solid fa-upload"></i> Image
-                  <input
-                    id="cv-image-upload"
-                    type="file"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={(e) => handleImageUpload(e.target.files && e.target.files[0])}
-                  />
-                </label>
-              </div>
+              {/* 액션 버튼(저장/실행/정지/변환/예제/이미지)은 상단바(bpy-topbar)로 승격됨 */}
             </div>
             
-            <div className="editor-content-wrapper" style={{ height: 'calc(100% - 48px)', position: 'relative' }}>
+            <div className="editor-content-wrapper" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
               {isConverting && (
                 <div className="convert-overlay" role="status" aria-live="polite">
                   <div className="convert-spinner" />
@@ -1760,26 +1728,19 @@ for i in range(4):
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+          </div>{/* /bpy-views */}
 
-        <section className="terminal-panel" data-open={terminalOpen ? '1' : '0'}>
-          {terminalOpen && <div className="terminal-resize-handle" onPointerDown={startTerminalResize} title="너비 조절" />}
-          <button
-            className="terminal-toggle btn btn-secondary btn-sm"
-            onClick={() => setTerminalOpen((v) => !v)}
-            title={terminalOpen ? '터미널 접기' : 'AI 도우미 터미널 열기'}
-            aria-label={terminalOpen ? '터미널 접기' : 'AI 도우미 터미널 열기'}
-          >
-            <i className={`fa-solid ${terminalOpen ? 'fa-angles-right' : 'fa-terminal'}`}></i>
-          </button>
-          {terminalEverOpened && (
-            <div className="terminal-body" style={{ display: terminalOpen ? 'flex' : 'none' }}>
-              <AiTerminal active={terminalOpen} />
+          {/* ── DOCK (230px): 좌 AI 도우미 터미널(다크) · 우 실행 출력 ── */}
+          <div className={`bpy-dock ${dockOpen ? '' : 'bpy-dock-hidden'}`}>
+            <div className="bpy-dock-term">
+              <AiTerminal active={dockOpen} />
             </div>
-          )}
-        </section>
-      </main>
+            <div className="bpy-dock-right">
+              <ConsoleLogs logs={logs} onClearConsole={() => setLogs([])} />
+            </div>
+          </div>
+        </main>
+      </div>{/* /bpy-body */}
 
       {imagePreview && (
         <div className="img-preview-overlay" onClick={() => setImagePreview(null)}>
