@@ -38,19 +38,20 @@ export default function App() {
   const [imagePreview, setImagePreview] = useState(null); // { name, url } | null
   const [fsReload, setFsReload] = useState(0);
 
-  // AI 도우미 터미널 패널: 접힘/펼침 + 너비를 localStorage에 유지. terminalEverOpened 는
-  // 한 번이라도 열렸으면 true 로 래치되어 <AiTerminal> 을 계속 마운트해둔다(세션/스크롤백 보존).
-  const [terminalOpen, setTerminalOpen] = useState(() => localStorage.getItem('blockpy.terminal.open') !== '0');
-  const [terminalWidth, setTerminalWidth] = useState(() => Number(localStorage.getItem('blockpy.terminal.width')) || 460);
-  const [terminalEverOpened, setTerminalEverOpened] = useState(() => localStorage.getItem('blockpy.terminal.open') !== '0');
-  useEffect(() => { localStorage.setItem('blockpy.terminal.open', terminalOpen ? '1' : '0'); if (terminalOpen) setTerminalEverOpened(true); }, [terminalOpen]);
-  useEffect(() => { localStorage.setItem('blockpy.terminal.width', String(terminalWidth)); }, [terminalWidth]);
+  // AI 도우미 터미널: 항상 켜짐(우측 세로 패널, 상시 마운트). 폭만 드래그로 조절·저장.
+  const [terminalWidth, setTerminalWidth] = useState(() => Number(localStorage.getItem('blockpy.terminal.width.v2')) || 760);
+  useEffect(() => { localStorage.setItem('blockpy.terminal.width.v2', String(terminalWidth)); }, [terminalWidth]);
 
-  // 터미널 패널 너비 드래그 리사이즈(왼쪽 핸들). 포인터 이동을 추적해 240~800px 로 클램프.
+  // 터미널 패널 너비 드래그 리사이즈(왼쪽 핸들). 코딩영역이 좁아도 되도록 넓게 허용:
+  // 최소 320 ~ 최대 뷰포트 72%(코딩영역 최소폭은 확보).
   const startTerminalResize = (e) => {
     e.preventDefault();
     const startX = e.clientX, startW = terminalWidth;
-    const onMove = (ev) => { const w = startW + (startX - ev.clientX); setTerminalWidth(Math.min(800, Math.max(240, w))); };
+    const onMove = (ev) => {
+      const w = startW + (startX - ev.clientX);
+      const max = Math.max(420, Math.floor(window.innerWidth * 0.72));
+      setTerminalWidth(Math.min(max, Math.max(320, w)));
+    };
     const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
     window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
   };
@@ -1504,9 +1505,6 @@ for i in range(4):
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="2" /><path d="M21 17l-5-5-6 6" /></svg>
           <input id="cv-image-upload" type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload(e.target.files && e.target.files[0])} />
         </label>
-        <button className={`bpy-btn ico ${terminalOpen ? 'on' : ''}`} onClick={() => setTerminalOpen((v) => !v)} aria-label="AI 터미널 토글" title="AI 도우미 터미널 접기/펴기">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9l3 3-3 3M13 15h4" /></svg>
-        </button>
         <button className="bpy-btn ico" onClick={toggleFullscreen} aria-label="전체화면" title="전체화면">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
         </button>
@@ -1741,13 +1739,11 @@ for i in range(4):
           </div>{/* /bpy-views */}
         </main>{/* /bpy-stage */}
 
-        {/* ── 우측 AI 도우미 터미널 (세로 · 리사이즈 · 크게) ── */}
-        {terminalEverOpened && (
-          <section className={`bpy-termcol ${terminalOpen ? '' : 'bpy-termcol-hidden'}`} style={{ width: terminalWidth }} aria-label="AI 도우미 터미널">
-            <div className="bpy-termcol-resize" onPointerDown={startTerminalResize} title="너비 조절" />
-            <AiTerminal active={terminalOpen} />
-          </section>
-        )}
+        {/* ── 우측 AI 도우미 터미널 (항상 켜짐 · 세로 · 리사이즈 · 크게) ── */}
+        <section className="bpy-termcol" style={{ width: terminalWidth }} aria-label="AI 도우미 터미널">
+          <div className="bpy-termcol-resize" onPointerDown={startTerminalResize} title="너비 조절" />
+          <AiTerminal active={true} />
+        </section>
       </div>{/* /bpy-body */}
 
       {imagePreview && (
