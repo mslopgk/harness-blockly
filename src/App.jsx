@@ -764,7 +764,7 @@ for i in range(4):
     }
     const r = await fetch('/api/robot/move-preset', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ port: robotConn.port, x: preset[0], y: preset[1], home: !!meta.first }),
+      body: JSON.stringify({ port: robotConn.port, x: preset[0], y: preset[1], z: meta.z, home: !!meta.first }),
     });
     const j = await r.json().catch(() => ({ ok: false, error: '서버 응답 오류' }));
     if (!j.ok) throw new Error((j.error || '이동 실패') + (j.hint ? ` — ${j.hint}` : ''));

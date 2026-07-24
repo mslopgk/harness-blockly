@@ -3,15 +3,24 @@ import { estimateAffine, reprojectionError } from '../utils/affineCalib';
 import defaultCalib from '../data/robotCalib.default.json';
 
 // 카메라↔로봇 캘리브레이션 UI (Robot 탭). 프론트 전용.
-//  - 기본: 저장/동봉 캘리값 자동 로드 → 학생 무작업.
-//  - 재보정(접근 1): 로봇이 알려진 프리셋으로 스스로 이동[훅] → 화면에서 엔드이펙터 클릭
-//    → (픽셀↔로봇 mm) 대응 → 아핀 2x3 풀이 → 저장. 조깅 없음.
 //
-// dobotkit 미확정 → 로봇 실제 이동은 onMoveToPreset 훅 하나로만 남긴다(기본=스텁).
-// 저장값을 학생 파이썬이 읽어 쓰는 소비부도 dobotkit 확정 후 배선.
+// ── eye-in-hand(팔 끝 카메라) 2단계 방식 ─────────────────────────────────────
+// 카메라가 엔드이펙터에 붙어 팔과 함께 움직이므로, "팔을 옮기며 엔드이펙터를 클릭"하는
+// 고정카메라(eye-to-hand) 방식은 클릭 픽셀이 항상 같은 자리에 뭉쳐 아핀이 퇴화한다.
+// 대신:
+//   1단계(표시): 팔이 프리셋 4곳을 순서대로 '가리킨다'(낮은 markZ). 학생이 그 지점 매트에
+//                스티커를 붙인다 → 각 스티커의 로봇좌표가 확정된다.
+//   2단계(관측): 팔이 '관측 자세'(고정, 높은 observation)로 이동해 멈춘다. 카메라가 4개
+//                스티커를 모두 본다. 학생이 스티커(또는 그 위 블록)를 화면에서 클릭한다
+//                → (픽셀 ↔ 로봇좌표) 대응이 화면 전체로 넓게 퍼져 아핀이 잘 풀린다.
+// 관측 자세에서의 픽셀→로봇 아핀 하나면 충분하다(검출도 항상 같은 관측 자세에서 하므로).
+//
+// markZ / observation 은 리그별로 다르니 robotCalib.default.json 에서 튜닝한다.
 
 const STORAGE_KEY = 'blockpy.robotCalib.v1';
 const PRESETS = defaultCalib.presets || [[200, -80], [200, 80], [300, 80], [300, -80]];
+const MARK_Z = typeof defaultCalib.markZ === 'number' ? defaultCalib.markZ : 0;
+const OBSERVATION = Array.isArray(defaultCalib.observation) ? defaultCalib.observation : [250, 0, 120];
 
 // 로드 우선순위: localStorage(사용자 재보정 저장값) > 동봉 seed > 미측정.
 function loadCalib() {
@@ -33,7 +42,7 @@ function saveCalib(M, pairs) {
 }
 
 // 기본 스텁: 팔 미연결. 실제로 로봇을 움직이지 않고 즉시 반환한다.
-// onMoveToPreset(preset, meta) — meta.first=true면 이동 전에 원점복귀(홈).
+// onMoveToPreset([x,y], meta) — meta.first=true면 이동 전 홈, meta.z=목표 z(mm).
 async function stubMove(preset, _meta) {
   console.warn('[RobotCalibrate] onMoveToPreset 미연결 (팔 연결 대기):', preset);
   return { moved: false };
@@ -44,22 +53,24 @@ export default function RobotCalibrate({ onMoveToPreset }) {
   const move = robotWired ? onMoveToPreset : stubMove;
 
   const [calib, setCalib] = useState(loadCalib);          // {M, measured, pairs, source}
-  const [mode, setMode] = useState('idle');               // 'idle' | 'capturing' | 'solved'
-  const [stepIndex, setStepIndex] = useState(0);
+  const [mode, setMode] = useState('idle');               // 'idle' | 'marking' | 'observing' | 'solved'
+  const [markIndex, setMarkIndex] = useState(0);          // 표시 단계 진행(프리셋 인덱스)
+  const [clickIndex, setClickIndex] = useState(0);        // 관측 단계 진행(클릭 인덱스)
   const [pairs, setPairs] = useState([]);                 // [[ [u,v],[x,y] ], ...]
   const [lastPixel, setLastPixel] = useState(null);       // [u,v] 마지막 클릭(표시용)
   const [solved, setSolved] = useState(null);             // {M, err:{mean,max}}
   const [error, setError] = useState('');
   const [camError, setCamError] = useState('');
+  const [moving, setMoving] = useState(false);            // 팔 이동 중(버튼 잠금)
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const wrapRef = useRef(null);
 
-  // ── 웹캠 스트림: 'capturing' 동안만 켠다(패널 보기만으로 카메라 권한 요구 안 함) ──
+  // ── 웹캠 스트림: '관측' 단계 동안만 켠다(패널 보기만으로 카메라 권한 요구 안 함) ──
   useEffect(() => {
     let cancelled = false;
-    if (mode !== 'capturing') return undefined;
+    if (mode !== 'observing') return undefined;
     setCamError('');
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setCamError('이 환경에서 카메라를 쓸 수 없습니다(getUserMedia 미지원).');
@@ -84,24 +95,42 @@ export default function RobotCalibrate({ onMoveToPreset }) {
     };
   }, [mode]);
 
-  const startRecalib = useCallback(async () => {
-    setPairs([]);
-    setLastPixel(null);
-    setSolved(null);
-    setError('');
-    setStepIndex(0);
-    setMode('capturing');
-    // 첫 프리셋: home=true (원점복귀 후 이동)로 절대좌표 신뢰성 확보.
-    try { await move(PRESETS[0], { first: true }); } catch (_) { /* 이동 실패는 진행을 막지 않음(advisory) */ }
-  }, [move]);
-
-  const cancel = useCallback(() => {
-    setMode('idle');
-    setPairs([]);
-    setLastPixel(null);
-    setSolved(null);
-    setError('');
+  const reset = useCallback(() => {
+    setPairs([]); setLastPixel(null); setSolved(null); setError('');
+    setMarkIndex(0); setClickIndex(0);
   }, []);
+
+  // 1단계 시작: 팔이 첫 프리셋을 가리킨다(홈 후 이동, 낮은 markZ).
+  const startRecalib = useCallback(async () => {
+    reset();
+    setMode('marking');
+    setMoving(true);
+    try { await move(PRESETS[0], { first: true, z: MARK_Z }); }
+    catch (e) { setError(`이동 실패: ${e.message || e}`); }
+    finally { setMoving(false); }
+  }, [move, reset]);
+
+  // 1단계 다음: 다음 프리셋 가리키기 → 모두 표시했으면 관측 자세로.
+  const nextMark = useCallback(async () => {
+    const ni = markIndex + 1;
+    if (ni < PRESETS.length) {
+      setMarkIndex(ni);
+      setMoving(true);
+      try { await move(PRESETS[ni], { first: false, z: MARK_Z }); }
+      catch (e) { setError(`이동 실패: ${e.message || e}`); }
+      finally { setMoving(false); }
+    } else {
+      // 관측 자세로 이동 후 2단계.
+      setMoving(true);
+      try { await move([OBSERVATION[0], OBSERVATION[1]], { first: false, z: OBSERVATION[2] }); }
+      catch (e) { setError(`관측 자세 이동 실패: ${e.message || e}`); }
+      finally { setMoving(false); }
+      setClickIndex(0); setLastPixel(null); setError('');
+      setMode('observing');
+    }
+  }, [markIndex, move]);
+
+  const cancel = useCallback(() => { setMode('idle'); reset(); }, [reset]);
 
   const resetToDefault = useCallback(() => {
     try { window.localStorage.removeItem(STORAGE_KEY); } catch (_) { /* noop */ }
@@ -109,9 +138,9 @@ export default function RobotCalibrate({ onMoveToPreset }) {
     cancel();
   }, [cancel]);
 
-  // 화면 클릭 → 프레임 픽셀 좌표(표시 크기와 실제 프레임 크기 스케일 보정) → 현재 프리셋과 대응 기록.
-  const onCanvasClick = useCallback(async (e) => {
-    if (mode !== 'capturing') return;
+  // 2단계 클릭 → 프레임 픽셀 좌표(표시크기↔실제프레임 스케일 보정) → 현재 스티커의 로봇좌표와 대응 기록.
+  const onCanvasClick = useCallback((e) => {
+    if (mode !== 'observing') return;
     const wrap = wrapRef.current;
     const vid = videoRef.current;
     if (!wrap) return;
@@ -125,16 +154,14 @@ export default function RobotCalibrate({ onMoveToPreset }) {
     const pixel = [Math.round(u), Math.round(v)];
     setLastPixel(pixel);
 
-    const preset = PRESETS[stepIndex];
+    const preset = PRESETS[clickIndex];
     const nextPairs = [...pairs, [pixel, preset]];
     setPairs(nextPairs);
 
-    const nextIndex = stepIndex + 1;
-    if (nextIndex < PRESETS.length) {
-      setStepIndex(nextIndex);
-      try { await move(PRESETS[nextIndex], { first: false }); } catch (_) { /* advisory */ }
+    const ni = clickIndex + 1;
+    if (ni < PRESETS.length) {
+      setClickIndex(ni);
     } else {
-      // 마지막 점 → 풀이
       try {
         const M = estimateAffine(nextPairs);
         const err = reprojectionError(M, nextPairs);
@@ -143,10 +170,10 @@ export default function RobotCalibrate({ onMoveToPreset }) {
         setError('');
       } catch (ex) {
         setError(ex.message || '아핀 풀이 실패');
-        // capturing 유지 — 사용자가 취소/다시 하도록
+        // observing 유지 — 취소/다시 하도록. (여전히 퇴화면 스티커를 더 넓게 퍼뜨려 다시.)
       }
     }
-  }, [mode, stepIndex, pairs, move]);
+  }, [mode, clickIndex, pairs]);
 
   const saveSolved = useCallback(() => {
     if (!solved) return;
@@ -169,29 +196,56 @@ export default function RobotCalibrate({ onMoveToPreset }) {
 
   return (
     <div className="robot-calibrate-panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-      <div style={{ fontWeight: 600 }}>캘리브레이션</div>
+      <div style={{ fontWeight: 600 }}>캘리브레이션 <span style={{ fontWeight: 400, fontSize: 11, opacity: 0.6 }}>(팔끝 카메라 · 2단계)</span></div>
       <div id="calib-status" style={{ fontSize: 13, opacity: calib.measured ? 1 : 0.85, color: calib.measured ? 'inherit' : '#b45309' }}>
         {statusLine}
       </div>
 
       {mode === 'idle' && (
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button id="calib-start" className="btn btn-primary btn-sm" onClick={startRecalib}>
-            <i className="fa-solid fa-crosshairs"></i> 재보정 시작
-          </button>
-          <button id="calib-reset" className="btn btn-secondary btn-sm" onClick={resetToDefault}>초기화</button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 12, opacity: 0.7, lineHeight: 1.5 }}>
+            ① 팔이 매트 위 {PRESETS.length}곳을 차례로 가리킵니다 → 그 자리에 <b>스티커</b>를 붙이세요.
+            ② 팔이 <b>관측 자세</b>로 올라간 뒤, 각 스티커를 화면에서 클릭하면 보정됩니다.
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button id="calib-start" className="btn btn-primary btn-sm" onClick={startRecalib}>
+              <i className="fa-solid fa-crosshairs"></i> 재보정 시작
+            </button>
+            <button id="calib-reset" className="btn btn-secondary btn-sm" onClick={resetToDefault}>초기화</button>
+          </div>
         </div>
       )}
 
-      {mode === 'capturing' && (
+      {mode === 'marking' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span id="calib-step">점 {stepIndex + 1}/{PRESETS.length} · 로봇 ({PRESETS[stepIndex][0]}, {PRESETS[stepIndex][1]})</span>
+            <span id="calib-mark-step">표시 {markIndex + 1}/{PRESETS.length} · 로봇 ({PRESETS[markIndex][0]}, {PRESETS[markIndex][1]})</span>
             <span id="calib-robot-badge" style={{ fontSize: 11, padding: '1px 6px', borderRadius: 8, background: robotWired ? '#dcfce7' : '#fee2e2', color: robotWired ? '#166534' : '#991b1b' }}>
-              {robotWired ? '로봇 이동됨' : '로봇 미연결(dobotkit 대기)'}
+              {robotWired ? (moving ? '팔 이동 중…' : '팔이 가리킴') : '로봇 미연결 — 좌표에 수동으로 스티커'}
             </span>
           </div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>화면에서 <b>엔드이펙터(집게 끝)</b>를 클릭하세요.</div>
+          <div style={{ fontSize: 12, opacity: 0.75, lineHeight: 1.5 }}>
+            팔끝이 가리키는 <b>매트 위치</b>에 스티커를 붙이세요. 다 붙였으면 [다음 지점].
+            {robotWired ? '' : ' (팔 미연결: 위 로봇좌표 지점에 직접 스티커를 붙이세요.)'}
+          </div>
+          {error && <div id="calib-error" style={{ color: '#c0392b', fontSize: 13 }}>{error}</div>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button id="calib-next-mark" className="btn btn-primary btn-sm" onClick={nextMark} disabled={moving}>
+              {markIndex + 1 < PRESETS.length ? '다음 지점' : '관측 자세로 →'}
+            </button>
+            <button id="calib-cancel" className="btn btn-secondary btn-sm" onClick={cancel}>취소</button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'observing' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 13 }}>
+            <span id="calib-click-step">클릭 {clickIndex + 1}/{PRESETS.length}</span> · 스티커의 로봇 ({PRESETS[clickIndex][0]}, {PRESETS[clickIndex][1]})
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.75, lineHeight: 1.5 }}>
+            관측 자세로 이동했습니다(팔 고정). <b>{clickIndex + 1}번째 스티커</b>(또는 그 위 블록)를 화면에서 클릭하세요.
+          </div>
           {camError ? (
             <div id="calib-cam-error" style={{ color: '#c0392b', fontSize: 13 }}>{camError}</div>
           ) : (
@@ -199,7 +253,7 @@ export default function RobotCalibrate({ onMoveToPreset }) {
               ref={wrapRef}
               id="calib-video-wrap"
               onClick={onCanvasClick}
-              style={{ position: 'relative', width: '100%', maxWidth: 360, aspectRatio: '4 / 3', background: '#000', cursor: 'crosshair', borderRadius: 6, overflow: 'hidden' }}
+              style={{ position: 'relative', width: '100%', maxWidth: 420, aspectRatio: '4 / 3', background: '#000', cursor: 'crosshair', borderRadius: 8, overflow: 'hidden' }}
             >
               <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
             </div>
@@ -209,7 +263,7 @@ export default function RobotCalibrate({ onMoveToPreset }) {
               마지막 클릭: 픽셀({lastPixel[0]}, {lastPixel[1]}) · 기록 {pairs.length}/{PRESETS.length}
             </div>
           )}
-          {error && <div id="calib-error" style={{ color: '#c0392b', fontSize: 13 }}>{error}</div>}
+          {error && <div id="calib-error" style={{ color: '#c0392b', fontSize: 13 }}>{error} <button className="btn btn-secondary btn-sm" style={{ marginLeft: 6 }} onClick={startRecalib}>처음부터</button></div>}
           <div style={{ display: 'flex', gap: 8 }}>
             <button id="calib-cancel" className="btn btn-secondary btn-sm" onClick={cancel}>취소</button>
           </div>
