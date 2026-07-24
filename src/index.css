@@ -2307,4 +2307,29 @@ body.theme-dark .convert-overlay { background: rgba(20,26,46,.72); }
 .bpy-mascot { background: var(--surface-soft); border: 1px solid var(--line); box-shadow: none; }
 /* 크롬에서 블록 카테고리 색 누수 제거: 파일칩 상태점은 세맨틱 초록으로 */
 .bpy-fchip-dot { background: var(--run); }
+
+/* ── AUX 도구 팝업: 좁은 인라인 패널(236px) 대신 넉넉한 플로팅 팝업 ──────────
+   rail 아이콘 클릭 시 파일/변수/AI/로봇/TM/변환로그를 넓게 띄운다. 기본은 닫힘 →
+   캔버스가 rail 빼고 전부 차지. 컴포넌트는 그대로라 기능 동일. */
+.bpy-body { position: relative; }
+.bpy-rail { position: relative; z-index: 46; }  /* 백드롭 위: 팝업 열려도 다른 도구로 전환 가능 */
+.bpy-aux-backdrop { position: absolute; inset: 0; z-index: 44; background: rgba(20,24,32,.28); animation: bpyFade .14s ease-out; }
+.bpy-files.bpy-aux-popup {
+  position: absolute; left: 78px; top: 12px; bottom: 12px;
+  width: clamp(440px, 46vw, 800px); z-index: 45; display: none;
+  box-shadow: 0 24px 60px rgba(20,24,32,.28);
+}
+.bpy-files.bpy-aux-popup.open { display: flex; animation: bpyPop .16s cubic-bezier(.2,.8,.2,1); }
+@keyframes bpyFade { from { opacity: 0; } }
+@keyframes bpyPop { from { opacity: 0; transform: translateX(-8px) scale(.99); } }
+.bpy-aux-close {
+  margin-left: auto; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+}
+.bpy-aux-close:hover { background: var(--surface-soft); color: var(--ink); }
+.bpy-aux-close:focus-visible { outline: 3px solid rgba(47,111,224,.4); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { .bpy-aux-backdrop, .bpy-files.bpy-aux-popup.open { animation: none; } }
+/* 좁은 화면에서도 팝업 폭 유지(기존 반응형 files 폭 규칙 무시) */
+@media (max-width: 1180px) { .bpy-files.bpy-aux-popup { width: clamp(360px, 60vw, 720px); } }
 /* 상단바 그림자/과한 라운드 없이 크리스프하게(이미 보더로 구분) */

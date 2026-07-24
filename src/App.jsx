@@ -1444,6 +1444,13 @@ for i in range(4):
 
   // ── 시안 B 레이아웃 보조 상태(순수 시각용 — 기존 핸들러/이펙트/엔드포인트 불변, 추가만) ──
   const [dockOpen, setDockOpen] = useState(true);
+  const [auxOpen, setAuxOpen] = useState(false);   // 사이드 도구(파일/AI/로봇/TM 등) 팝업 열림
+  useEffect(() => {
+    if (!auxOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setAuxOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [auxOpen]);
   const toggleFullscreen = () => {
     try {
       if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
@@ -1513,14 +1520,19 @@ for i in range(4):
         {/* SIDE RAIL — 7 아이콘 탭 + 마스코트 */}
         <nav className="bpy-rail" aria-label="사이드 패널 전환">
           {RAIL_TABS.map((t) => {
-            const on = activeAuxTab === t.key;
+            const on = auxOpen && activeAuxTab === t.key;
             return (
               <button
                 key={t.key}
                 className={`bpy-rtab ${on ? 'on' : ''}`}
                 aria-label={t.label}
                 aria-pressed={on}
-                onClick={() => { setActiveAuxTab(t.key); if (t.key === 'gray') refreshGrayBlocks(); }}
+                onClick={() => {
+                  const willClose = auxOpen && activeAuxTab === t.key;
+                  setActiveAuxTab(t.key);
+                  if (t.key === 'gray') refreshGrayBlocks();
+                  setAuxOpen(!willClose);
+                }}
               >
                 {t.icon}<span>{t.ko}{t.key === 'gray' && grayBlocks.length ? ` ${grayBlocks.length}` : ''}</span>
               </button>
@@ -1531,9 +1543,13 @@ for i in range(4):
           </div>
         </nav>
 
-        {/* FILES COLUMN — 선택된 사이드탭 패널 */}
-        <aside className="bpy-files">
-          <div className="bpy-files-head"><b>{FILES_LABEL[activeAuxTab] || '패널'}</b><span className="bpy-pill">내 프로젝트</span></div>
+        {/* AUX 도구 팝업 (파일/변수/AI/로봇/TM/변환로그) — 넓은 공간으로 띄움 */}
+        {auxOpen && <div className="bpy-aux-backdrop" onClick={() => setAuxOpen(false)} aria-hidden="true" />}
+        <aside className={`bpy-files bpy-aux-popup ${auxOpen ? 'open' : ''}`} role="dialog" aria-label={FILES_LABEL[activeAuxTab] || '패널'}>
+          <div className="bpy-files-head">
+            <b>{FILES_LABEL[activeAuxTab] || '패널'}</b>
+            <button className="bpy-aux-close" onClick={() => setAuxOpen(false)} aria-label="패널 닫기" title="닫기">✕</button>
+          </div>
             <div className="tab-content-wrapper">
               {activeAuxTab === 'files' && (
                 <FileExplorer
