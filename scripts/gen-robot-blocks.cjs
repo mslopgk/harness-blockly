@@ -28,6 +28,7 @@ const spec = {
     armCmd('move_relative', 'dx', 'dy', 'dz'),
     armCmd('suck', 'on'),
     armCmd('grip', 'on'),
+    armCmd('pump_off'),
     armCmd('set_speed', 'velocity', 'acceleration'),
     armVal('get_pose'),
     // ── 차 (MagicianGO) — 수신자 변수 car ──
