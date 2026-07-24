@@ -2312,6 +2312,9 @@ body.theme-dark .convert-overlay { background: rgba(20,26,46,.72); }
    rail 아이콘 클릭 시 파일/변수/AI/로봇/TM/변환로그를 넓게 띄운다. 기본은 닫힘 →
    캔버스가 rail 빼고 전부 차지. 컴포넌트는 그대로라 기능 동일. */
 .bpy-body { position: relative; }
+/* Blockly 툴박스/워크스페이스의 높은 내부 z-index 가 팝업을 뚫지 못하도록 stage 를 독립
+   스태킹 컨텍스트로 가둔다(이게 없으면 카테고리 블록이 팝업 위로 겹쳐 보임). */
+.bpy-stage { position: relative; isolation: isolate; z-index: 0; }
 .bpy-rail { position: relative; z-index: 46; }  /* 백드롭 위: 팝업 열려도 다른 도구로 전환 가능 */
 .bpy-aux-backdrop { position: absolute; inset: 0; z-index: 44; background: rgba(20,24,32,.28); animation: bpyFade .14s ease-out; }
 .bpy-files.bpy-aux-popup {
