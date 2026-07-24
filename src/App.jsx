@@ -843,7 +843,7 @@ for i in range(4):
   const handlePipInstallShell = async () => {
     const pkg = pipPkg.trim();
     if (!pkg) return;
-    setActiveAuxTab('logs');
+    setDockOpen(true);
     setLogs((prev) => [...prev, `[pip] Installing: pip install ${pkg} ...`]);
     try {
       const resp = await fetch('/api/pip-install', {
@@ -887,7 +887,7 @@ for i in range(4):
     // the explorer shows matches what executes).
     if (activeFile) { await saveActiveFile({ silent: true }); }
     setLogs([`[Shell] Running real Python (local python + real cv2)${activeFile ? ' on ' + activeFile : ''}. Files resolve against the workspace folder.`, `[Shell] Code:\n${code}`]);
-    setActiveAuxTab('logs');
+    setDockOpen(true);
     setIsRunning(true);
     const controller = new AbortController();
     shellAbortRef.current = controller;
@@ -1454,8 +1454,7 @@ for i in range(4):
   const RAIL_TABS = [
     { key: 'files', label: 'Files', ko: '파일', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M3 7l2-3h6l2 3h6v13H3z" /></svg>) },
     { key: 'variables', label: 'Variable', ko: '변수', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 7h16M4 12h10M4 17h16" /></svg>) },
-    { key: 'logs', label: 'Terminal', ko: '터미널', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9l3 3-3 3M13 15h4" /></svg>) },
-    { key: 'gray', label: 'Logs', ko: '로그', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 5h16v11H4z" /><path d="M8 20h8M12 16v4" /></svg>) },
+    { key: 'gray', label: 'Logs', ko: '변환 로그', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 5h16v11H4z" /><path d="M8 20h8M12 16v4" /></svg>) },
     { key: 'ai', label: 'AI', ko: 'AI', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z" /></svg>) },
     { key: 'robot', label: 'Robot', ko: '로봇', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="5" y="8" width="14" height="10" rx="2" /><path d="M12 8V5M8 13h.01M16 13h.01" /></svg>) },
     { key: 'tm', label: 'TM', ko: 'TM', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="5" width="18" height="12" rx="2" /><circle cx="12" cy="11" r="3" /></svg>) },
@@ -1546,12 +1545,6 @@ for i in range(4):
               )}
               {activeAuxTab === 'variables' && (
                 <VariableWatch variables={variables} />
-              )}
-              {activeAuxTab === 'logs' && (
-                <ConsoleLogs
-                  logs={logs}
-                  onClearConsole={() => setLogs([])}
-                />
               )}
               {activeAuxTab === 'ai' && (
                 <div className="ai-tab-scroll">
