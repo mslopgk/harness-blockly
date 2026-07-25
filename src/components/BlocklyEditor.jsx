@@ -91,6 +91,8 @@ export default function BlocklyEditor({
   onSnapshotChange,
   initialSnapshot,
   isSyncingFromCode,
+  associatedPython,
+  latestCode,
   workspaceRef,
 }) {
   const containerRef = useRef(null);
@@ -308,6 +310,19 @@ export default function BlocklyEditor({
         const ir = window.BlockPyIR.blocklyToIr(snapshot);
         const code = await window.BlockPyAstBridge.irToPython(pyodide, ir);
         if (isSyncingFromCode.current) return; // a code->block sync may have started during await
+        // 코드→블록 로드가 유발한 재생성은 버린다. workspaces.load 의 change 이벤트는 동기 가드가
+        // 풀린 직후에 늦게 도착해 여기까지 오는데, 그때 에디터에 사용자가 새로 입력한 코드가 있으면
+        // 그것을 블록에서 되뽑은 코드로 덮어써 파괴한다(실측: 시작 데모 블록 로드가 사용자가 방금
+        // 입력한 코드를 star 예제로 덮어썼다 — ir_desugar_app 게이트 실패의 원인).
+        // 판별 기준은 시간창이 아니라 '정보량': 재생성 결과가 그 블록을 만든 파이썬과 같으면 새 정보가
+        // 없으므로 적용할 이유가 없다. 실제 블록 편집은 결과가 달라지므로 정상적으로 반영된다.
+        // 에디터가 '이 블록을 만든 파이썬'과 이미 갈라져 있으면(=그 사이 사용자가 새로 입력했다)
+        // 블록에서 되뽑은 코드로 덮지 않는다. workspaces.load 의 change 이벤트는 동기 가드가 풀린
+        // 뒤에 늦게 도착해 여기까지 오므로, 이 조건이 없으면 시작 데모/main.py 로드의 에코가
+        // 사용자가 방금 입력한 코드를 파괴한다(실측: ir_desugar_app 게이트 실패 원인).
+        // 정상 흐름(입력→변환→블록편집)에서는 에디터와 원본이 일치하므로 그대로 재생성된다.
+        if (associatedPython && latestCode && associatedPython.current
+            && latestCode.current !== associatedPython.current) return;
         onCodeChange(code);
         onSnapshotChange(snapshot);
         setSyncError('');

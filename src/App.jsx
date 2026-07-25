@@ -405,6 +405,11 @@ export default function App() {
       // Snapshot Recovery fast path: BYTE-IDENTICAL Python since the last block edit restores the
       // saved workspace JSON verbatim (no re-parse, no block drift).
       if (blocklySnapshotRef.current && currentCode === associatedPythonRef.current) {
+        // 세대 가드(누락돼 있던 곳): 아래 IR-동일 빠른 경로와 달리 이 바이트-동일 경로에는 가드가
+        // 없어서, 늦게 도착한 이전 동기화가 최신 블록을 옛 스냅샷으로 되돌릴 수 있었다
+        // (실측 로그: "Converted Python → blocks" 직후 "Python matches active snapshot" 이 찍히며
+        //  시작 데모의 스냅샷이 사용자가 방금 변환한 블록을 덮었다 — ir_desugar_app 실패 원인).
+        if (myGen !== syncGenRef.current) return;
         window.Blockly.serialization.workspaces.load(blocklySnapshotRef.current, workspaceRef.current);
         setLogs(prev => [...prev, '[Sync-Engine] Python matches active snapshot. Restored layout without block drift.']);
         setSyntaxStatus({ valid: true, error: '' });
@@ -567,8 +572,11 @@ export default function App() {
               applied = true;
               return content;
             });
+            // 데모 경로와 동일한 세대 가드: 이 지연 창 안에 사용자가 직접 변환했다면 세대가
+            // 올라가므로 시작 로드가 사용자의 변환 결과를 덮어쓰지 않게 양보한다.
+            const genAtSchedule = syncGenRef.current;
             setTimeout(() => {
-              if (applied && latestCodeRef.current === content) {
+              if (applied && latestCodeRef.current === content && syncGenRef.current === genAtSchedule) {
                 setActiveFile('main.py');
                 diskContentRef.current = content;
                 syncCodeToBlocks(content);
@@ -713,10 +721,15 @@ for i in range(4):
     setHighlightedLine(null);
     setLogs([`[System] Demo script "${type}" loaded into workspace.`]);
 
+    // 지연 동기화 시점의 변환 세대를 기억한다: 이 창 안에 사용자가 직접 변환(Convert)했다면
+    // 세대가 올라가므로, 시작 데모가 사용자의 변환 결과를 덮어쓰지 않도록 건너뛴다.
+    const genAtSchedule = syncGenRef.current;
     setTimeout(() => {
       // Deferred sync fires only if the editor still shows this demo — a user who replaced the
       // content within the delay window must not have their code's blocks clobbered.
-      if (latestCodeRef.current === demoCode) syncCodeToBlocks(demoCode);
+      if (latestCodeRef.current !== demoCode) return;
+      if (syncGenRef.current !== genAtSchedule) return;   // 사용자가 그 사이 변환했다 → 양보
+      syncCodeToBlocks(demoCode);
     }, 100);
   };
 
@@ -1737,6 +1750,8 @@ for i in range(4):
                   onSnapshotChange={handleBlocklySnapshotChange}
                   initialSnapshot={blocklySnapshotRef.current}
                   isSyncingFromCode={isSyncingFromCodeRef}
+                  associatedPython={associatedPythonRef}
+                  latestCode={latestCodeRef}
                   workspaceRef={workspaceRef}
                 />
               </div>
