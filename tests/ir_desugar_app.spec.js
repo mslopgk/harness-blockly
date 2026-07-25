@@ -5,7 +5,8 @@
 // in ir_desugar_semantics.spec.js; this test is about the wiring.
 const { test, expect } = require('@playwright/test');
 
-const APP_URL = 'http://localhost:' + (process.env.PORT || '3000') + '/';
+// 코드정리/구문트리 탭은 고급(교사) 모드 전용이므로 ?advanced=1 로 진입한다(검증 내용은 동일).
+const APP_URL = 'http://localhost:' + (process.env.PORT || '3000') + '/?advanced=1';
 const wsJson = (page) => page.evaluate(() =>
   JSON.stringify(window.Blockly.serialization.workspaces.save(window.__blocklyWorkspace)));
 

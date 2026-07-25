@@ -2385,6 +2385,47 @@ code, pre, .font-mono { font-family: var(--font-mono); }
    flyoutBackgroundColour 와 반드시 함께 바꿔라(어긋나면 라이트에서 툴박스/플라이아웃이 갈린다). */
 .blocklyFlyoutBackground { fill: var(--panel) !important; }
 
+/* ── 파이썬 실행 출력: 코딩 영역(블록/파이썬) 하단 상주 패널 ─────────────────
+   stage = views(위, 남는 높이) + outpane(아래 고정). 실행 시 자동 펼침, 헤더 클릭으로 접기.
+   AI 도우미 터미널(우측 세로 .bpy-termcol)과는 완전히 별개 영역이다. */
+.bpy-outpane {
+  flex: none; display: flex; flex-direction: column; min-height: 0;
+  height: 210px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: var(--r-panel); overflow: hidden;
+}
+.bpy-outpane.collapsed { height: auto; }
+.bpy-outpane-head {
+  display: flex; align-items: center; gap: 8px; flex: none;
+  height: 36px; padding: 0 10px; cursor: pointer;
+  background: var(--surface); border: none; border-bottom: 1px solid var(--line);
+  font-family: var(--font-sans); font-size: var(--fs-13); color: var(--ink); text-align: left;
+}
+.bpy-outpane.collapsed .bpy-outpane-head { border-bottom: none; }
+.bpy-outpane-head:hover { background: var(--wash); }
+.bpy-outpane-head:focus-visible { outline: 3px solid rgba(79,128,255,.35); outline-offset: -3px; }
+.bpy-outpane-ico { width: 16px; height: 16px; flex: none; color: var(--muted); }
+.bpy-outpane-head b { font-weight: 700; }
+.bpy-outpane-run { font-size: var(--fs-11); font-weight: 700; color: var(--run-strong); }
+.bpy-outpane-count {
+  font-size: var(--fs-11); font-weight: 700; color: var(--accent-strong);
+  background: var(--wash); border-radius: 999px; padding: 1px 7px;
+}
+.bpy-outpane-sp { flex: 1 1 auto; }
+.bpy-outpane-chev { color: var(--muted); font-size: 11px; }
+.bpy-outpane-body { flex: 1; min-height: 0; display: flex; }
+/* 내부 ConsoleLogs 는 이 패널이 크롬을 담당하므로 자체 카드 장식을 벗긴다(팝업/뷰와 동일 규칙) */
+.bpy-outpane-body .console-card {
+  flex: 1; min-width: 0; min-height: 0; height: 100%;
+  border: none; border-radius: 0; box-shadow: none; background: transparent;
+}
+.bpy-outpane-body .console-card:hover { border-color: transparent; }
+/* 패널 헤더가 이미 "실행 출력" 이므로 내부 ConsoleLogs 의 중복 제목("Console & Logs")은 숨기고
+   지우기 버튼만 남긴다. 헤더 줄 자체를 없애 출력 높이를 확보. */
+.bpy-outpane-body .console-card > .panel-header {
+  border: none; background: transparent; min-height: 0; height: 28px; padding: 0 8px;
+}
+.bpy-outpane-body .console-card > .panel-header .panel-title-group { display: none; }
+
 /* ── ⑨ AI 도우미 터미널(우측 상시 패널 · 드래그 리사이즈) ─────────────────── */
 .bpy-termcol {
   flex: none; position: relative; min-height: 0; align-self: stretch;

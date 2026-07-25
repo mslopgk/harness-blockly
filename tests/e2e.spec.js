@@ -60,7 +60,8 @@ test.describe('BlockPy E2E Harness Tests', () => {
   });
 
   test('should verify list.append(val) parses and updates variable monitor without errors', async ({ page }) => {
-    await page.goto('http://localhost:3000');
+    // 변수 탭은 고급(교사) 모드 전용 → ?advanced=1 로 진입
+    await page.goto('http://localhost:3000/?advanced=1');
 
     // Switch to Python tab
     const pythonTabButton = page.locator('#tab-btn-python');

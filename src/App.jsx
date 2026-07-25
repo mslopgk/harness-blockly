@@ -887,6 +887,7 @@ for i in range(4):
     // the explorer shows matches what executes).
     if (activeFile) { await saveActiveFile({ silent: true }); }
     setLogs([`[Shell] Running real Python (local python + real cv2)${activeFile ? ' on ' + activeFile : ''}. Files resolve against the workspace folder.`, `[Shell] Code:\n${code}`]);
+    setOutOpen(true);      // 실행하면 하단 출력 패널을 자동으로 펼친다
     setIsRunning(true);
     const controller = new AbortController();
     shellAbortRef.current = controller;
@@ -1443,6 +1444,46 @@ for i in range(4):
 
   // ── 시안 B 레이아웃 보조 상태(순수 시각용 — 기존 핸들러/이펙트/엔드포인트 불변, 추가만) ──
   const [auxOpen, setAuxOpen] = useState(false);   // 사이드 도구(파일/AI/로봇/TM 등) 팝업 열림
+  // 파이썬 실행 출력 패널(코딩 영역 하단 상주). 접힘 상태는 localStorage 에 유지.
+  const [outOpen, setOutOpen] = useState(() => {
+    try { return window.localStorage.getItem('blockpy.outpane') !== '0'; } catch (_) { return true; }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem('blockpy.outpane', outOpen ? '1' : '0'); } catch (_) { /* noop */ }
+  }, [outOpen]);
+
+  // ── 고급(교사) 모드 ────────────────────────────────────────────────────────
+  // 학생 수업 화면에서는 개발자 관점 화면(코드정리·구문트리·변환로그·변수)을 숨긴다.
+  // 교사/진단용으로는 남겨둔다: Ctrl+Shift+A 로 토글, localStorage 에 유지.
+  // `?advanced=1` 로도 켤 수 있다 — CI 게이트(ir_desugar_app / e2e)가 이 경로로 진입한다.
+  const [advanced, setAdvanced] = useState(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get('advanced') === '1') return true;
+      return window.localStorage.getItem('blockpy.advanced') === '1';
+    } catch (_) { return false; }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem('blockpy.advanced', advanced ? '1' : '0'); } catch (_) { /* noop */ }
+  }, [advanced]);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        e.preventDefault();
+        setAdvanced((v) => {
+          const next = !v;
+          setLogs((prev) => [...prev, `[모드] ${next ? '고급(교사) 모드 ON — 코드정리·구문트리·변환로그·변수 표시' : '학생 모드 ON — 개발자 화면 숨김'}`]);
+          return next;
+        });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  // 고급 모드를 끄는 순간 고급 전용 뷰에 남아있지 않도록 블록 화면으로 되돌린다.
+  useEffect(() => {
+    if (!advanced && (activeEditorTab === 'desugar' || activeEditorTab === 'ast')) setActiveEditorTab('blockly');
+    if (!advanced && (activeAuxTab === 'gray' || activeAuxTab === 'variables')) { setActiveAuxTab('files'); setAuxOpen(false); }
+  }, [advanced, activeEditorTab, activeAuxTab]);
   useEffect(() => {
     if (!auxOpen) return;
     const onKey = (e) => { if (e.key === 'Escape') setAuxOpen(false); };
@@ -1455,16 +1496,17 @@ for i in range(4):
       else document.exitFullscreen?.();
     } catch (_) { /* 미지원 환경 무시 */ }
   };
-  // rail(66px) 세로 아이콘 탭 7개 — 기존 activeAuxTab 값에 그대로 매핑(Terminal→logs, Logs→gray).
+  // rail 세로 아이콘 탭 — 기존 activeAuxTab 값에 그대로 매핑(실행출력→logs, 변환로그→gray).
+  // `adv: true` = 고급(교사) 모드 전용. 학생 화면에서는 변수/변환로그를 감춘다.
   const RAIL_TABS = [
     { key: 'files', label: 'Files', ko: '파일', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M3 7l2-3h6l2 3h6v13H3z" /></svg>) },
-    { key: 'variables', label: 'Variable', ko: '변수', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 7h16M4 12h10M4 17h16" /></svg>) },
-    { key: 'logs', label: 'Output', ko: '실행 출력', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 5h16v14H4z" /><path d="M8 9l2 2-2 2M13 13h3" /></svg>) },
-    { key: 'gray', label: 'Logs', ko: '변환 로그', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 5h16v11H4z" /><path d="M8 20h8M12 16v4" /></svg>) },
+    { key: 'variables', label: 'Variable', ko: '변수', adv: true, icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 7h16M4 12h10M4 17h16" /></svg>) },
+    /* 실행 출력은 rail 팝업이 아니라 코딩 영역(블록/파이썬) 하단 패널에 상주한다 → 중복 방지로 rail 에서 제외 */
+    { key: 'gray', label: 'Logs', ko: '변환 로그', adv: true, icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 5h16v11H4z" /><path d="M8 20h8M12 16v4" /></svg>) },
     { key: 'ai', label: 'AI', ko: 'AI', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z" /></svg>) },
     { key: 'robot', label: 'Robot', ko: '로봇', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="5" y="8" width="14" height="10" rx="2" /><path d="M12 8V5M8 13h.01M16 13h.01" /></svg>) },
     { key: 'tm', label: 'TM', ko: 'TM', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="5" width="18" height="12" rx="2" /><circle cx="12" cy="11" r="3" /></svg>) },
-  ];
+  ].filter((t) => advanced || !t.adv);
   const FILES_LABEL = { files: '파일', variables: '변수', logs: '실행 출력', gray: '변환 로그', ai: 'AI 라이브러리', robot: '로봇 연결', tm: '티처블머신', examples: '예제' };
 
   return (
@@ -1487,6 +1529,16 @@ for i in range(4):
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="2" /><path d="M21 17l-5-5-6 6" /></svg>
           <input id="cv-image-upload" type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload(e.target.files && e.target.files[0])} />
         </label>
+        {/* 테마 토글: 구문트리 탭이 고급 전용이 되었으므로 학생도 쓸 수 있게 상단바로 승격 */}
+        <button
+          id="theme-toggle"
+          className="bpy-btn ico"
+          onClick={toggleTheme}
+          aria-label={isDarkTheme ? '밝은 테마로' : '어두운 테마로'}
+          title={isDarkTheme ? '밝은 테마로' : '어두운 테마로'}
+        >
+          <i className={isDarkTheme ? 'fa-solid fa-moon' : 'fa-solid fa-sun'}></i>
+        </button>
         <button className="bpy-btn ico" onClick={toggleFullscreen} aria-label="전체화면" title="전체화면">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
         </button>
@@ -1566,9 +1618,7 @@ for i in range(4):
               {activeAuxTab === 'variables' && (
                 <VariableWatch variables={variables} />
               )}
-              {activeAuxTab === 'logs' && (
-                <ConsoleLogs logs={logs} onClearConsole={() => setLogs([])} />
-              )}
+              {/* 실행 출력은 코딩 영역 하단 패널(.bpy-outpane)에 상주 — 여기서는 렌더하지 않는다(중복 방지) */}
               {activeAuxTab === 'ai' && (
                 <div className="ai-tab-scroll">
                   <LibraryManager
@@ -1651,20 +1701,26 @@ for i in range(4):
               >
                 <i className="fa-brands fa-python"></i> 파이썬 코드
               </button>
-              <button 
-                id="tab-btn-desugar"
-                className={`tab-btn ${activeEditorTab === 'desugar' ? 'active' : ''}`}
-                onClick={() => setActiveEditorTab('desugar')}
-              >
-                <i className="fa-solid fa-wand-magic-sparkles"></i> 코드 정리(desugar)
-              </button>
-              <button
-                id="tab-btn-ast"
-                className={`tab-btn ${activeEditorTab === 'ast' ? 'active' : ''}`}
-                onClick={() => setActiveEditorTab('ast')}
-              >
-                <i className="fa-solid fa-diagram-project"></i> 구문 트리(AST)
-              </button>
+              {/* 코드정리·구문트리는 개발자 관점 화면 → 고급(교사) 모드에서만 노출(Ctrl+Shift+A).
+                  Auto Desugar 토글도 구문트리 탭 안에 있으므로 함께 고급 전용이 된다. */}
+              {advanced && (
+                <>
+                  <button
+                    id="tab-btn-desugar"
+                    className={`tab-btn ${activeEditorTab === 'desugar' ? 'active' : ''}`}
+                    onClick={() => setActiveEditorTab('desugar')}
+                  >
+                    <i className="fa-solid fa-wand-magic-sparkles"></i> 코드 정리(desugar)
+                  </button>
+                  <button
+                    id="tab-btn-ast"
+                    className={`tab-btn ${activeEditorTab === 'ast' ? 'active' : ''}`}
+                    onClick={() => setActiveEditorTab('ast')}
+                  >
+                    <i className="fa-solid fa-diagram-project"></i> 구문 트리(AST)
+                  </button>
+                </>
+              )}
               {/* 액션 버튼(저장/실행/정지/변환/예제/이미지)은 상단바(bpy-topbar)로 승격됨 */}
             </div>
             
@@ -1727,14 +1783,6 @@ for i in range(4):
                       />
                       <span>Auto Desugar</span>
                     </label>
-                    <button
-                      id="theme-toggle"
-                      className="btn btn-secondary btn-icon-only theme-btn"
-                      onClick={toggleTheme}
-                      title="Toggle theme styling"
-                    >
-                      <i className={isDarkTheme ? "fa-solid fa-moon" : "fa-solid fa-sun"}></i>
-                    </button>
                   </div>
                   <ASTTreeView
                     code={code}
@@ -1745,6 +1793,32 @@ for i in range(4):
               </div>
             </div>
           </div>{/* /bpy-views */}
+
+          {/* ── 파이썬 실행 출력: 코딩 영역(블록/파이썬) 하단에 상주 ──────────────
+              실행 버튼을 누르면 자동으로 펼쳐지고, 헤더를 눌러 접을 수 있다.
+              (AI 도우미 터미널은 우측 세로 패널로 그대로 — 별개 영역) */}
+          <section className={`bpy-outpane ${outOpen ? '' : 'collapsed'}`} aria-label="실행 출력">
+            <button
+              className="bpy-outpane-head"
+              onClick={() => setOutOpen((v) => !v)}
+              aria-expanded={outOpen}
+              title={outOpen ? '실행 출력 접기' : '실행 출력 펼치기'}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="bpy-outpane-ico">
+                <path d="M4 5h16v14H4z" /><path d="M8 9l2 2-2 2M13 13h3" />
+              </svg>
+              <b>실행 출력</b>
+              {isRunning && <span className="bpy-outpane-run">실행 중…</span>}
+              {!outOpen && logs.length > 0 && <span className="bpy-outpane-count">{logs.length}</span>}
+              <span className="bpy-outpane-sp" />
+              <span className="bpy-outpane-chev">{outOpen ? '▾' : '▴'}</span>
+            </button>
+            {outOpen && (
+              <div className="bpy-outpane-body">
+                <ConsoleLogs logs={logs} onClearConsole={() => setLogs([])} />
+              </div>
+            )}
+          </section>
         </main>{/* /bpy-stage */}
 
         {/* ── 우측 AI 도우미 터미널 (항상 켜짐 · 세로 · 리사이즈 · 크게) ── */}
