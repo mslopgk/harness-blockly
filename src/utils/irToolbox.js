@@ -43,30 +43,30 @@ const COMP_GENS = { gens: [{ ifs: 0, async: false }] };
 // The closed family table. Order = worklist order (common -> rare). Each block entry is
 // { type, extraState?, fields?, inputs? }; extraState/inputs describe the default drag-out form.
 const IR_TOOLBOX_TABLE = [
-  { name: 'Values', colour: '#5b80a5', blocks: [
+  { name: 'Values', colour: '#4C97FF', blocks: [
     { type: 'ir_name' },
     { type: 'ir_str' },                                   // rounded text string (type content directly)
     { type: 'ir_const' },
   ] },
-  { name: 'Collections', colour: '#4a90a4', blocks: [
+  { name: 'Collections', colour: '#9B5DE5', blocks: [
     { type: 'ir_list', extraState: { n: 0 } },
     { type: 'ir_tuple', extraState: { n: 0 } },
     { type: 'ir_set', extraState: { n: 1 }, inputs: { ELT0: konst(0) } },
     { type: 'ir_dict', extraState: { n: 0 } },
   ] },
-  { name: 'Operators', colour: '#5b67a5', blocks: [
+  { name: 'Operators', colour: '#57C84D', blocks: [
     { type: 'ir_binop', inputs: { LEFT: konst(0), RIGHT: konst(0) } },
     { type: 'ir_unaryop', inputs: { OPERAND: konst(0) } },
     { type: 'ir_boolop', extraState: { n: 2 }, inputs: { VAL0: konst(true), VAL1: konst(false) } },
     { type: 'ir_compare', extraState: { n: 1 }, inputs: { LEFT: konst(0), CMP0: konst(0) } },
   ] },
-  { name: 'Access', colour: '#a07a4a', blocks: [
+  { name: 'Access', colour: '#00BBF9', blocks: [
     { type: 'ir_attribute', inputs: { VALUE: name('obj') } },
     { type: 'ir_subscript', inputs: { VALUE: name('obj'), SLICE: konst(0) } },
     { type: 'ir_slice' },                                  // bounds optional (a[:])
     { type: 'ir_starred', inputs: { VALUE: name('args') } },
   ] },
-  { name: 'Variables', colour: '#5b5ba5', button: { text: 'Create variable…', callbackkey: 'IR_CREATE_VARIABLE' }, blocks: [
+  { name: 'Variables', colour: '#FF8C1A', button: { text: 'Create variable…', callbackkey: 'IR_CREATE_VARIABLE' }, blocks: [
     { type: 'ir_assign', extraState: { n: 1 }, inputs: { TARGET0: name('x'), VALUE: konst(0) } },
     { type: 'ir_augassign', inputs: { TARGET: name('x'), VALUE: konst(1) } },
     { type: 'ir_annassign', inputs: { TARGET: name('x'), ANNOTATION: name('int') } },
@@ -75,7 +75,7 @@ const IR_TOOLBOX_TABLE = [
     { type: 'ir_global' },
     { type: 'ir_nonlocal' },
   ] },
-  { name: 'Control flow', colour: '#a0734a', blocks: [
+  { name: 'Control flow', colour: '#FFC02E', blocks: [
     { type: 'ir_if', inputs: { TEST: konst(true) } },
     { type: 'ir_if', extraState: { hasElse: true }, inputs: { TEST: konst(true) } },   // if / else
     { type: 'ir_while', inputs: { TEST: konst(true) } },
@@ -85,7 +85,7 @@ const IR_TOOLBOX_TABLE = [
     { type: 'ir_continue' },
     { type: 'ir_pass' },
   ] },
-  { name: 'Functions', colour: '#9a6a8a', blocks: [
+  { name: 'Functions', colour: '#FF6B8A', blocks: [
     { type: 'ir_funcdef' },                                // def f(): pass
     { type: 'ir_lambda', inputs: { BODY: konst(0) } },
     { type: 'ir_return' },                                 // bare `return`
@@ -93,7 +93,7 @@ const IR_TOOLBOX_TABLE = [
     { type: 'ir_call', extraState: { nargs: 1, kw: [], stmt: true }, inputs: { FUNC: name('func'), ARG0: name('x') } },  // call as a command (stack)
     { type: 'ir_exprstmt', inputs: { VALUE: name('value') } },
   ] },
-  { name: 'Built-ins', colour: '#6a8a5b', blocks: [
+  { name: 'Built-ins', colour: '#7B6CF6', blocks: [
     builtin('print', [text('Hello')], true),               // print(...) — a command (stack) block
     builtin('input', [text('? ')]),
     builtin('len', [name('items')]),
@@ -149,10 +149,10 @@ const IR_TOOLBOX_TABLE = [
     builtin('slice', [konst(0), konst(10)]),
     builtin('super', []),
   ] },
-  { name: 'Classes', colour: '#9a6a8a', blocks: [
+  { name: 'Classes', colour: '#E15BD4', blocks: [
     { type: 'ir_classdef' },                               // class C: pass
   ] },
-  { name: 'Exceptions', colour: '#a0734a', blocks: [
+  { name: 'Exceptions', colour: '#EE5253', blocks: [
     { type: 'ir_try' },                                    // try: pass / except: pass
     { type: 'ir_trystar', extraState: { handlers: [{ type: true, name: null }] },
       inputs: { TYPE0: name('Exception') } },
@@ -160,18 +160,18 @@ const IR_TOOLBOX_TABLE = [
     { type: 'ir_assert', inputs: { TEST: konst(true) } },
     { type: 'ir_with', extraState: { items: [{ as: false }] }, inputs: { CTX0: name('ctx') } },
   ] },
-  { name: 'Imports', colour: '#888888', blocks: [
+  { name: 'Imports', colour: '#4D77E8', blocks: [
     { type: 'ir_import' },                                 // import os
     { type: 'ir_importfrom' },                             // from os import path
   ] },
-  { name: 'Sugar', colour: '#5b80a5', blocks: [
+  { name: 'Sugar', colour: '#F15BB5', blocks: [
     { type: 'ir_listcomp', extraState: COMP_GENS, inputs: { ELT: name('x'), TARGET0: name('x'), ITER0: name('items') } },
     { type: 'ir_setcomp', extraState: COMP_GENS, inputs: { ELT: name('x'), TARGET0: name('x'), ITER0: name('items') } },
     { type: 'ir_genexp', extraState: COMP_GENS, inputs: { ELT: name('x'), TARGET0: name('x'), ITER0: name('items') } },
     { type: 'ir_dictcomp', extraState: COMP_GENS, inputs: { KEY: name('k'), VAL: name('v'), TARGET0: name('k'), ITER0: name('items') } },
     { type: 'ir_ifexp', inputs: { BODY: konst(0), TEST: konst(true), ORELSE: konst(0) } },
   ] },
-  { name: 'Async', colour: '#5b80a5', blocks: [
+  { name: 'Async', colour: '#17C3B2', blocks: [
     { type: 'ir_asyncfuncdef' },                           // async def f(): pass
     { type: 'ir_asyncfor', inputs: { TARGET: name('i'), ITER: name('items') } },
     { type: 'ir_asyncwith', extraState: { items: [{ as: false }] }, inputs: { CTX0: name('ctx') } },
@@ -179,15 +179,15 @@ const IR_TOOLBOX_TABLE = [
     { type: 'ir_yield' },                                  // bare `yield`
     { type: 'ir_yieldfrom', inputs: { VALUE: name('x') } },
   ] },
-  { name: 'Text', colour: '#a55b80', blocks: [
+  { name: 'Text', colour: '#2BA0E0', blocks: [
     { type: 'ir_joinedstr', extraState: { n: 0 } },        // f''
   ] },
-  { name: 'Match', colour: '#a0734a', blocks: [
+  { name: 'Match', colour: '#E8A33D', blocks: [
     // match x: / case _: pass   (MatchAs wildcard — no embedded exprs, no guard)
     { type: 'ir_match', extraState: { cases: [{ pattern: { p: 'As' }, nexpr: 0, guard: false }] },
       inputs: { SUBJECT: name('x') } },
   ] },
-  { name: 'Types', colour: '#9a6a8a', blocks: [
+  { name: 'Types', colour: '#8AC926', blocks: [
     { type: 'ir_typealias', inputs: { VALUE: name('int') } },  // type X = int
   ] },
 ];
