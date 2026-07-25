@@ -195,9 +195,9 @@ export default function RobotCalibrate({ onMoveToPreset }) {
     : '미측정 — 최초 1회 재보정이 필요합니다.';
 
   return (
-    <div className="robot-calibrate-panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+    <div className="robot-calibrate-panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid var(--line)' }}>
       <div style={{ fontWeight: 600 }}>캘리브레이션 <span style={{ fontWeight: 400, fontSize: 11, opacity: 0.6 }}>(팔끝 카메라 · 2단계)</span></div>
-      <div id="calib-status" style={{ fontSize: 13, opacity: calib.measured ? 1 : 0.85, color: calib.measured ? 'inherit' : '#b45309' }}>
+      <div id="calib-status" style={{ fontSize: 13, opacity: calib.measured ? 1 : 0.85, color: calib.measured ? 'inherit' : 'var(--warn-ink)' }}>
         {statusLine}
       </div>
 
@@ -220,7 +220,7 @@ export default function RobotCalibrate({ onMoveToPreset }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span id="calib-mark-step">표시 {markIndex + 1}/{PRESETS.length} · 로봇 ({PRESETS[markIndex][0]}, {PRESETS[markIndex][1]})</span>
-            <span id="calib-robot-badge" style={{ fontSize: 11, padding: '1px 6px', borderRadius: 8, background: robotWired ? '#dcfce7' : '#fee2e2', color: robotWired ? '#166534' : '#991b1b' }}>
+            <span id="calib-robot-badge" style={{ fontSize: 11, padding: '1px 6px', borderRadius: 8, background: 'var(--surface)', border: `1px solid ${robotWired ? 'var(--run)' : 'var(--stop)'}`, color: robotWired ? 'var(--run-ink)' : 'var(--stop-ink)' }}>
               {robotWired ? (moving ? '팔 이동 중…' : '팔이 가리킴') : '로봇 미연결 — 좌표에 수동으로 스티커'}
             </span>
           </div>
@@ -228,7 +228,7 @@ export default function RobotCalibrate({ onMoveToPreset }) {
             팔끝이 가리키는 <b>매트 위치</b>에 스티커를 붙이세요. 다 붙였으면 [다음 지점].
             {robotWired ? '' : ' (팔 미연결: 위 로봇좌표 지점에 직접 스티커를 붙이세요.)'}
           </div>
-          {error && <div id="calib-error" style={{ color: '#c0392b', fontSize: 13 }}>{error}</div>}
+          {error && <div id="calib-error" style={{ color: 'var(--stop-ink)', fontSize: 13 }}>{error}</div>}
           <div style={{ display: 'flex', gap: 8 }}>
             <button id="calib-next-mark" className="btn btn-primary btn-sm" onClick={nextMark} disabled={moving}>
               {markIndex + 1 < PRESETS.length ? '다음 지점' : '관측 자세로 →'}
@@ -247,13 +247,13 @@ export default function RobotCalibrate({ onMoveToPreset }) {
             관측 자세로 이동했습니다(팔 고정). <b>{clickIndex + 1}번째 스티커</b>(또는 그 위 블록)를 화면에서 클릭하세요.
           </div>
           {camError ? (
-            <div id="calib-cam-error" style={{ color: '#c0392b', fontSize: 13 }}>{camError}</div>
+            <div id="calib-cam-error" style={{ color: 'var(--stop-ink)', fontSize: 13 }}>{camError}</div>
           ) : (
             <div
               ref={wrapRef}
               id="calib-video-wrap"
               onClick={onCanvasClick}
-              style={{ position: 'relative', width: '100%', maxWidth: 420, aspectRatio: '4 / 3', background: '#000', cursor: 'crosshair', borderRadius: 8, overflow: 'hidden' }}
+              style={{ position: 'relative', width: '100%', maxWidth: 420, aspectRatio: '4 / 3', background: 'var(--media-bg)', cursor: 'crosshair', borderRadius: 'var(--r-panel)', overflow: 'hidden' }}
             >
               <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
             </div>
@@ -263,7 +263,7 @@ export default function RobotCalibrate({ onMoveToPreset }) {
               마지막 클릭: 픽셀({lastPixel[0]}, {lastPixel[1]}) · 기록 {pairs.length}/{PRESETS.length}
             </div>
           )}
-          {error && <div id="calib-error" style={{ color: '#c0392b', fontSize: 13 }}>{error} <button className="btn btn-secondary btn-sm" style={{ marginLeft: 6 }} onClick={startRecalib}>처음부터</button></div>}
+          {error && <div id="calib-error" style={{ color: 'var(--stop-ink)', fontSize: 13 }}>{error} <button className="btn btn-secondary btn-sm" style={{ marginLeft: 6 }} onClick={startRecalib}>처음부터</button></div>}
           <div style={{ display: 'flex', gap: 8 }}>
             <button id="calib-cancel" className="btn btn-secondary btn-sm" onClick={cancel}>취소</button>
           </div>
@@ -272,7 +272,7 @@ export default function RobotCalibrate({ onMoveToPreset }) {
 
       {mode === 'solved' && solved && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div id="calib-solved" style={{ fontSize: 13, color: '#166534' }}>
+          <div id="calib-solved" style={{ fontSize: 13, color: 'var(--run-ink)' }}>
             풀이 완료 · 재투영 오차 평균 {solved.err.mean.toFixed(1)}mm / 최대 {solved.err.max.toFixed(1)}mm
           </div>
           <div style={{ fontSize: 11, fontFamily: 'monospace', opacity: 0.7 }}>

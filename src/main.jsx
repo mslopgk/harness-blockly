@@ -2,16 +2,11 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 
-// Self-hosted fonts (offline). @fontsource ships the woff2 + @font-face CSS; Vite bundles them
-// into dist/assets, so the app needs no Google Fonts CDN. Weights match index.css usage.
-import '@fontsource/inter/400.css';
-import '@fontsource/inter/500.css';
-import '@fontsource/inter/600.css';
-import '@fontsource/cormorant-garamond/500.css';
-import '@fontsource/cormorant-garamond/600.css';
-import '@fontsource/cormorant-garamond/700.css';
-import '@fontsource/jetbrains-mono/400.css';
-import '@fontsource/jetbrains-mono/500.css';
+// 디자인 v2 는 한국 블록코딩 사이트(엔트리) 톤을 따라 시스템 폰트 스택만 쓴다
+// (index.css: --font-sans = Pretendard/Noto Sans KR/맑은 고딕…, --font-mono = D2Coding/Consolas…).
+// v1 의 @fontsource Inter/Cormorant Garamond/JetBrains Mono import 는 어떤 CSS 도
+// 참조하지 않으면서 woff/woff2 20여 개를 dist 에 밀어넣고 있어 제거했다.
+// (오프라인 규칙은 그대로 — CDN/@import 없음, FontAwesome 은 public/vendor 에서 서빙.)
 
 import './index.css';
 

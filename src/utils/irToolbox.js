@@ -19,6 +19,33 @@
  * intentionally NOT exposed; the browser coverage test asserts this is the only omission.
  */
 
+// ── 엔트리 공식 블록 팔레트 (디자인 v2) ───────────────────────────────────────────────────
+// 소스오브트루스: DOCS/superpowers/specs/2026-07-25-blockpy-korean-blockcoding-design-v2.md §B
+// (entrylabs/entryjs `src/theme/standard.js` 실측). 카테고리마다 3단:
+//   default = 블록 본체 / lighten = 내부 필드·하이라이트 / darken = 외곽선.
+// 엔트리 룩의 입체감은 "단색 1톤"이 아니라 이 3단에서 나온다 — v1 이 저에너지로 읽힌 원인이
+// 카테고리 색을 단색으로 눌러버린 것이었다. BlocklyEditor 가 이 표를 그대로 Blockly 테마
+// blockStyles(colourPrimary/Secondary/Tertiary) 로 등록하므로, 여기가 색의 유일한 출처다.
+// 값은 실측치 그대로 사용한다. 스펙 표에서 lighten 이 '—' 인 JUDGE/EXPANSION 두 칸만
+// default 를 흰색과 블렌드해(≈25%) 산출했고, 그 외 어떤 색도 새로 발명하지 않았다.
+const ENTRY_PALETTE = {
+  START:     { default: '#10D35E', lighten: '#53E68E', darken: '#13BF68' },  // 시작
+  FLOW:      { default: '#31C1EC', lighten: '#4ADAFB', darken: '#08ACDD' },  // 흐름
+  MOVING:    { default: '#BF63FF', lighten: '#CA7DFF', darken: '#B13EFE' },  // 움직임
+  LOOKS:     { default: '#FF5174', lighten: '#FF7792', darken: '#EE3157' },  // 생김새
+  BRUSH:     { default: '#FC7E01', lighten: '#FF9831', darken: '#FC5E01' },  // 붓
+  SOUND:     { default: '#82D214', lighten: '#9FEC35', darken: '#6EBC02' },  // 소리
+  HARDWARE:  { default: '#00CFCA', lighten: '#65E3E0', darken: '#04B5B0' },  // 하드웨어
+  CALC:      { default: '#FEB71A', lighten: '#FFDE82', darken: '#FF9C00' },  // 계산
+  VARIABLE:  { default: '#F57DF1', lighten: '#FAA0F7', darken: '#EC52E7' },  // 자료
+  FUNC:      { default: '#DE6E22', lighten: '#F3853B', darken: '#C85404' },  // 함수
+  JUDGE:     { default: '#7E8EFE', lighten: '#9EAAFE', darken: '#1B3AD8' },  // 판단 (lighten 산출)
+  TEXT:      { default: '#FC5D01', lighten: '#FF9354', darken: '#E43500' },  // 글상자
+  EXPANSION: { default: '#FF8888', lighten: '#FFA6A6', darken: '#EF6D6D' },  // 확장 (lighten 산출)
+};
+// 톤 키 -> 본체색. 카테고리 탭 색과 블록 본체 색이 같은 표에서 나오므로 절대 어긋나지 않는다.
+const tone = (key) => (ENTRY_PALETTE[key] || ENTRY_PALETTE.FLOW).default;
+
 // --- shadow-child helpers (the JSON Blockly expects for a default input) ---
 const name = (id) => ({ shadow: { type: 'ir_name', fields: { ID: id } } });
 // value is JSON-encoded to match ir_const's field contract (blockToExpr does JSON.parse).
@@ -42,31 +69,33 @@ const COMP_GENS = { gens: [{ ifs: 0, async: false }] };
 
 // The closed family table. Order = worklist order (common -> rare). Each block entry is
 // { type, extraState?, fields?, inputs? }; extraState/inputs describe the default drag-out form.
+// `tone` = the ENTRY_PALETTE key for the category (디자인 v2 매핑표). The tab colour AND every
+// block body in that category resolve from it, so the palette can never drift from the tabs.
 const IR_TOOLBOX_TABLE = [
-  { name: 'Values', colour: '#4C97FF', blocks: [
+  { name: 'Values', tone: 'FLOW', blocks: [
     { type: 'ir_name' },
     { type: 'ir_str' },                                   // rounded text string (type content directly)
     { type: 'ir_const' },
   ] },
-  { name: 'Collections', colour: '#9966FF', blocks: [
+  { name: 'Collections', tone: 'MOVING', blocks: [
     { type: 'ir_list', extraState: { n: 0 } },
     { type: 'ir_tuple', extraState: { n: 0 } },
     { type: 'ir_set', extraState: { n: 1 }, inputs: { ELT0: konst(0) } },
     { type: 'ir_dict', extraState: { n: 0 } },
   ] },
-  { name: 'Operators', colour: '#59C059', blocks: [
+  { name: 'Operators', tone: 'SOUND', blocks: [
     { type: 'ir_binop', inputs: { LEFT: konst(0), RIGHT: konst(0) } },
     { type: 'ir_unaryop', inputs: { OPERAND: konst(0) } },
     { type: 'ir_boolop', extraState: { n: 2 }, inputs: { VAL0: konst(true), VAL1: konst(false) } },
     { type: 'ir_compare', extraState: { n: 1 }, inputs: { LEFT: konst(0), CMP0: konst(0) } },
   ] },
-  { name: 'Access', colour: '#5CB1D6', blocks: [
+  { name: 'Access', tone: 'HARDWARE', blocks: [
     { type: 'ir_attribute', inputs: { VALUE: name('obj') } },
     { type: 'ir_subscript', inputs: { VALUE: name('obj'), SLICE: konst(0) } },
     { type: 'ir_slice' },                                  // bounds optional (a[:])
     { type: 'ir_starred', inputs: { VALUE: name('args') } },
   ] },
-  { name: 'Variables', colour: '#FF8C1A', button: { text: 'Create variable…', callbackkey: 'IR_CREATE_VARIABLE' }, blocks: [
+  { name: 'Variables', tone: 'VARIABLE', button: { text: 'Create variable…', callbackkey: 'IR_CREATE_VARIABLE' }, blocks: [
     { type: 'ir_assign', extraState: { n: 1 }, inputs: { TARGET0: name('x'), VALUE: konst(0) } },
     { type: 'ir_augassign', inputs: { TARGET: name('x'), VALUE: konst(1) } },
     { type: 'ir_annassign', inputs: { TARGET: name('x'), ANNOTATION: name('int') } },
@@ -75,7 +104,7 @@ const IR_TOOLBOX_TABLE = [
     { type: 'ir_global' },
     { type: 'ir_nonlocal' },
   ] },
-  { name: 'Control flow', colour: '#FFAB19', blocks: [
+  { name: 'Control flow', tone: 'CALC', blocks: [
     { type: 'ir_if', inputs: { TEST: konst(true) } },
     { type: 'ir_if', extraState: { hasElse: true }, inputs: { TEST: konst(true) } },   // if / else
     { type: 'ir_while', inputs: { TEST: konst(true) } },
@@ -85,7 +114,7 @@ const IR_TOOLBOX_TABLE = [
     { type: 'ir_continue' },
     { type: 'ir_pass' },
   ] },
-  { name: 'Functions', colour: '#FF6680', blocks: [
+  { name: 'Functions', tone: 'FUNC', blocks: [
     { type: 'ir_funcdef' },                                // def f(): pass
     { type: 'ir_lambda', inputs: { BODY: konst(0) } },
     { type: 'ir_return' },                                 // bare `return`
@@ -93,7 +122,7 @@ const IR_TOOLBOX_TABLE = [
     { type: 'ir_call', extraState: { nargs: 1, kw: [], stmt: true }, inputs: { FUNC: name('func'), ARG0: name('x') } },  // call as a command (stack)
     { type: 'ir_exprstmt', inputs: { VALUE: name('value') } },
   ] },
-  { name: 'Built-ins', colour: '#CF63CF', blocks: [
+  { name: 'Built-ins', tone: 'JUDGE', blocks: [
     builtin('print', [text('Hello')], true),               // print(...) — a command (stack) block
     builtin('input', [text('? ')]),
     builtin('len', [name('items')]),
@@ -149,10 +178,10 @@ const IR_TOOLBOX_TABLE = [
     builtin('slice', [konst(0), konst(10)]),
     builtin('super', []),
   ] },
-  { name: 'Classes', colour: '#9966FF', blocks: [
+  { name: 'Classes', tone: 'MOVING', blocks: [
     { type: 'ir_classdef' },                               // class C: pass
   ] },
-  { name: 'Exceptions', colour: '#FFBF00', blocks: [
+  { name: 'Exceptions', tone: 'LOOKS', blocks: [
     { type: 'ir_try' },                                    // try: pass / except: pass
     { type: 'ir_trystar', extraState: { handlers: [{ type: true, name: null }] },
       inputs: { TYPE0: name('Exception') } },
@@ -160,18 +189,18 @@ const IR_TOOLBOX_TABLE = [
     { type: 'ir_assert', inputs: { TEST: konst(true) } },
     { type: 'ir_with', extraState: { items: [{ as: false }] }, inputs: { CTX0: name('ctx') } },
   ] },
-  { name: 'Imports', colour: '#4C97FF', blocks: [
+  { name: 'Imports', tone: 'FLOW', blocks: [
     { type: 'ir_import' },                                 // import os
     { type: 'ir_importfrom' },                             // from os import path
   ] },
-  { name: 'Sugar', colour: '#CF63CF', blocks: [
+  { name: 'Sugar', tone: 'VARIABLE', blocks: [
     { type: 'ir_listcomp', extraState: COMP_GENS, inputs: { ELT: name('x'), TARGET0: name('x'), ITER0: name('items') } },
     { type: 'ir_setcomp', extraState: COMP_GENS, inputs: { ELT: name('x'), TARGET0: name('x'), ITER0: name('items') } },
     { type: 'ir_genexp', extraState: COMP_GENS, inputs: { ELT: name('x'), TARGET0: name('x'), ITER0: name('items') } },
     { type: 'ir_dictcomp', extraState: COMP_GENS, inputs: { KEY: name('k'), VAL: name('v'), TARGET0: name('k'), ITER0: name('items') } },
     { type: 'ir_ifexp', inputs: { BODY: konst(0), TEST: konst(true), ORELSE: konst(0) } },
   ] },
-  { name: 'Async', colour: '#5CB1D6', blocks: [
+  { name: 'Async', tone: 'HARDWARE', blocks: [
     { type: 'ir_asyncfuncdef' },                           // async def f(): pass
     { type: 'ir_asyncfor', inputs: { TARGET: name('i'), ITER: name('items') } },
     { type: 'ir_asyncwith', extraState: { items: [{ as: false }] }, inputs: { CTX0: name('ctx') } },
@@ -179,15 +208,15 @@ const IR_TOOLBOX_TABLE = [
     { type: 'ir_yield' },                                  // bare `yield`
     { type: 'ir_yieldfrom', inputs: { VALUE: name('x') } },
   ] },
-  { name: 'Text', colour: '#4C97FF', blocks: [
+  { name: 'Text', tone: 'TEXT', blocks: [
     { type: 'ir_joinedstr', extraState: { n: 0 } },        // f''
   ] },
-  { name: 'Match', colour: '#FFAB19', blocks: [
+  { name: 'Match', tone: 'CALC', blocks: [
     // match x: / case _: pass   (MatchAs wildcard — no embedded exprs, no guard)
     { type: 'ir_match', extraState: { cases: [{ pattern: { p: 'As' }, nexpr: 0, guard: false }] },
       inputs: { SUBJECT: name('x') } },
   ] },
-  { name: 'Types', colour: '#59C059', blocks: [
+  { name: 'Types', tone: 'SOUND', blocks: [
     { type: 'ir_typealias', inputs: { VALUE: name('int') } },  // type X = int
   ] },
 ];
@@ -220,29 +249,49 @@ function libCallEntry(reg, type) {
 // Sub-category colours — DISTINCT per semantic KIND so, inside a library, "Constants" / "Properties"
 // / "Macros" / a curation group are visually separable at a glance (they used to all be one teal).
 // Display-only (a category colour never affects a block's lowering).
+// v2: 값은 전부 엔트리 팔레트/크롬(스펙 §A·§B)에서 가져와 상위 라이브러리 탭(LIB_PALETTE)·
+// ★ 큐레이션 탭과 겹치지 않는 6개 색으로 정리했다 — 임의의 머티리얼 색을 쓰지 않는다.
 const SUBCAT = {
-  group:     '#00897b',   // curation semantic group (teal)
-  other:     '#00897b',   // ungrouped calls (same family as groups)
-  constants: '#5c6bc0',   // module constants — indigo
-  property:  '#c9822e',   // class properties — amber
-  macros:    '#7e57c2',   // composed workflows — purple
-  more:      '#9e9e9e',   // "더 보기" secondary shelf — muted grey (reads as "extra/advanced")
+  group:     ENTRY_PALETTE.FLOW.darken,        // #08ACDD 의미 그룹 — 진한 블루
+  other:     '#606c73',                        // 그룹 없는 호출 — 엔트리 보조 텍스트 슬레이트(중립)
+  constants: ENTRY_PALETTE.JUDGE.default,      // #7E8EFE 모듈 상수 — 페리윙클
+  property:  ENTRY_PALETTE.FUNC.default,       // #DE6E22 클래스 속성 — 오렌지
+  macros:    ENTRY_PALETTE.VARIABLE.darken,    // #EC52E7 조합 워크플로 — 마젠타
+  more:      '#979797',                        // "더 보기" 보조 선반 — 엔트리 뮤트 그레이
 };
 
 // Top-level library category colour, keyed by the TOP package so a whole-package Blockify keeps its
 // submodules a visual family (all serial.* share one hue; cv2 / math / numpy each get their own),
 // while the tab NAME still distinguishes members. Deterministic (no Math.random) → stable across
 // rebuilds. Curated ★ tabs keep their own fixed accent below.
-// Hues deliberately steer clear of the semantic sub-category colours (amber/indigo/purple/teal)
-// so a library tab never blends into its own Constants/Properties/Macros sub-category.
-const LIB_PALETTE = ['#3f7fd0', '#0f9d58', '#c94f7c', '#c94f4f', '#4f9ec9', '#7cb342', '#00acc1', '#e0662b', '#0288d1', '#43a047', '#d81b60', '#6d8b3a'];
+// v2: 후보 색을 전부 엔트리 팔레트 톤으로 교체하고, 사이 구분이 뚜렷한 9개만 남겼다. SUBCAT
+// 6색(#08ACDD/#606c73/#7E8EFE/#DE6E22/#EC52E7/#979797) 과 ★ 큐레이션 틸(HARDWARE) 은 제외 —
+// 라이브러리 탭이 자기 하위 Constants/Properties/Macros 나 ★ 탭과 절대 섞이지 않는다.
+const LIB_PALETTE = [
+  ENTRY_PALETTE.FLOW.default,      // #31C1EC
+  ENTRY_PALETTE.MOVING.default,    // #BF63FF
+  ENTRY_PALETTE.LOOKS.default,     // #FF5174
+  ENTRY_PALETTE.SOUND.default,     // #82D214
+  ENTRY_PALETTE.CALC.default,      // #FEB71A
+  ENTRY_PALETTE.VARIABLE.default,  // #F57DF1
+  ENTRY_PALETTE.TEXT.default,      // #FC5D01
+  ENTRY_PALETTE.START.default,     // #10D35E
+  ENTRY_PALETTE.JUDGE.darken,      // #1B3AD8
+];
+// 스펙 매핑표가 이름으로 지정한 라이브러리는 해시 대신 그 톤으로 고정한다(dobotkit→START,
+// tm→MOVING). 커리큘럼의 주력 라이브러리라 탭 색이 빌드마다 흔들리면 안 된다.
+const LIB_TONE_PIN = { dobotkit: 'START', tm: 'MOVING' };
 function topPkg(libKey) { return String(libKey || '').replace(/^★\s*/, '').split('.')[0] || 'Library'; }
 function libColour(libKey) {
   const top = topPkg(libKey);
+  if (LIB_TONE_PIN[top]) return tone(LIB_TONE_PIN[top]);
   let h = 0;
   for (let i = 0; i < top.length; i++) h = (h * 31 + top.charCodeAt(i)) >>> 0;
   return LIB_PALETTE[h % LIB_PALETTE.length];
 }
+// ★ 큐레이션 탭 액센트: 엔트리 하드웨어 틸. 라이브러리 해시 팔레트에서 제외된 색이라
+// "★ = 추천 뷰" 가 항상 한 눈에 구분된다(기존 #00796b 틸의 연속성도 유지).
+const CURATED_COLOUR = ENTRY_PALETTE.HARDWARE.default;
 
 // One toolbox category PER LIBRARY (named by the library, e.g. cv2 / pathlib / PIL.Image), instead
 // of one lumped "Library". A library's blocks are bucketed by its source-library tag (lib, else the
@@ -403,7 +452,7 @@ function libraryCategories() {
     if (macroEntries.length) contents.push({ kind: 'category', name: 'Macros', colour: SUBCAT.macros, contents: macroEntries });
     const moreContents = flatten(moreG);
     if (moreContents.length) contents.push({ kind: 'category', name: '더 보기', colour: SUBCAT.more, contents: moreContents });
-    if (contents.length) cats.push({ kind: 'category', name: `★ ${cur.label || cur.key}`, colour: '#00796b', contents, _pkg: topPkg(cur.lib || cur.key) });
+    if (contents.length) cats.push({ kind: 'category', name: `★ ${cur.label || cur.key}`, colour: CURATED_COLOUR, contents, _pkg: topPkg(cur.lib || cur.key) });
   }
   return nestByPackage(cats);
 }
@@ -454,13 +503,35 @@ function buildIrToolbox() {
     const items = cat.button
       ? [{ kind: 'button', text: cat.button.text, callbackkey: cat.button.callbackkey }, ...blocks]
       : blocks;
-    return { kind: 'category', name: cat.name, colour: cat.colour, contents: items };
+    return { kind: 'category', name: cat.name, colour: tone(cat.tone), contents: items };
   });
   for (const cat of libraryCategories()) contents.push(cat);   // one category per registered library
   return { kind: 'categoryToolbox', contents };
 }
 
+// ── block type -> 엔트리 톤 키 (Blockly 테마용) ──────────────────────────────────────────
+// IR_TOOLBOX_TABLE 에서 DERIVE 한다: 카테고리 탭 색과 그 카테고리 블록 본체 색이 같은 한 줄에서
+//나오므로 팔레트가 탭과 어긋날 수 없다(중복 정의 없음). BlocklyEditor 가 이 표를 읽어 각
+// ir_* 블록에 카테고리 톤을 찍는다 — 색은 display-only 라 lowering 에는 아무 영향이 없다.
+const BLOCK_TONE_OVERRIDE = {
+  // ir_call 은 Functions(일반 호출) 와 Built-ins(print/len/…) 두 카테고리에 동시에 사는 유일한
+  // 블록이다. 압도적 다수가 Built-ins 이므로 JUDGE 로 못박아 탭↔블록 색을 맞춘다.
+  ir_call: 'JUDGE',
+  // f-string 조각(HELPER, ir_joinedstr 안에서만 유효) — 툴박스에 없으므로 부모와 같은 TEXT.
+  ir_formattedvalue: 'TEXT',
+};
+function blockTones() {
+  const out = {};
+  for (const cat of IR_TOOLBOX_TABLE) {
+    for (const b of cat.blocks) if (b.type) out[b.type] = cat.tone;
+  }
+  return Object.assign(out, BLOCK_TONE_OVERRIDE);
+}
+
 const api = (typeof window !== 'undefined' ? window : global);
 api.BlockPyIrToolbox = buildIrToolbox();        // initial (registry empty at module-load time)
 api.BlockPyBuildIrToolbox = buildIrToolbox;     // Phase 5: re-callable to refresh the Library category
-if (typeof module !== 'undefined') module.exports = { buildIrToolbox, IR_TOOLBOX_TABLE };
+// 디자인 v2 팔레트 공개(테마 계층에서 소비). 하드코딩 hex 를 컴포넌트에 흩뿌리지 않기 위한 토큰.
+api.BlockPyEntryPalette = ENTRY_PALETTE;        // 엔트리 4단 톤 표 (색의 유일한 출처)
+api.BlockPyBlockTones = blockTones();           // ir_* 블록 타입 -> 톤 키
+if (typeof module !== 'undefined') module.exports = { buildIrToolbox, IR_TOOLBOX_TABLE, ENTRY_PALETTE, blockTones };

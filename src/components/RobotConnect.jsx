@@ -110,7 +110,7 @@ export default function RobotConnect({ onConnectedChange }) {
         <div style={{ fontWeight: 600, marginBottom: 6 }}>로봇 연결</div>
         <div id="robot-status" style={{ fontSize: 13 }}>
           {connected ? (
-            <span style={{ color: '#178a4c' }}>
+            <span style={{ color: 'var(--run-ink)' }}>
               <i className="fa-solid fa-circle" style={{ fontSize: 8, marginRight: 6 }}></i>
               연결됨{connectedPort ? ` — ${connectedPort}` : ''}{statusLine ? ` · ${statusLine}` : ''}
             </span>
@@ -202,7 +202,7 @@ export default function RobotConnect({ onConnectedChange }) {
       </div>
 
       {error && (
-        <div id="robot-error" style={{ fontSize: 12.5, color: '#c0392b', lineHeight: 1.5 }}>
+        <div id="robot-error" style={{ fontSize: 12.5, color: 'var(--stop-ink)', lineHeight: 1.5 }}>
           <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 6 }}></i>{error}
         </div>
       )}

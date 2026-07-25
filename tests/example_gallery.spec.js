@@ -39,10 +39,14 @@ test.describe('Example Gallery Tab', () => {
       () => (window.__blocklyWorkspace ? window.__blocklyWorkspace.getAllBlocks(false).length : 0),
     ), { timeout: 30000 }).toBeGreaterThan(0);
 
-    // 상단 액션 바 '예제' 버튼도 좌측 탭을 연다
+    // 다른 탭으로 옮긴 뒤에도 상단 액션 바 '예제' 버튼이 예제 탭을 다시 연다.
+    // (디자인 v2 레이아웃: rail 은 파일/변수/실행출력/변환로그/AI/로봇/TM 7개이고 '예제'는
+    //  상단바에만 있다 → 예전 스펙이 가정한 별도의 `#btn-examples` 컨트롤은 존재하지 않으며,
+    //  같은 상단바 버튼 `#tab-btn-examples` 이 그 역할을 한다. 이 재클릭은 팝업이 닫힌 채
+    //  아무 것도 안 뜨던 죽은 버튼 회귀를 막는 게이트다.)
     await page.locator('#tab-btn-files').click();
     await expect(page.locator('#example-card-grid')).toHaveCount(0);
-    await page.locator('#btn-examples').click();
+    await page.locator('#tab-btn-examples').click();
     await expect(page.locator('#example-card-grid')).toBeVisible();
   });
 });

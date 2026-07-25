@@ -46,9 +46,12 @@ export default function AiTerminal({ active }) {
     const timer = setTimeout(() => {
       if (cancelled) return;
       const term = new Terminal({
-        fontFamily: 'JetBrains Mono, ui-monospace, monospace', fontSize: 13,
+        // 디자인 v2: 코드 폰트 스택(index.css --font-mono)과 동일 — 오프라인 시스템 폰트만.
+        fontFamily: 'D2Coding, Consolas, Menlo, ui-monospace, monospace', fontSize: 13,
         cursorBlink: true, convertEol: false,
-        theme: { background: '#1a1815', foreground: '#e8e3da' },
+        // 쿨 슬레이트 다크. index.css 의 --term-bg / --term-ink 와 1:1 로 맞춘 값이다
+        // (xterm 은 canvas 렌더러라 CSS 변수를 읽지 못해 여기서만 리터럴로 둔다).
+        theme: { background: '#171b23', foreground: '#e8ebf1' },
       });
       const fit = new FitAddon();
       term.loadAddon(fit);

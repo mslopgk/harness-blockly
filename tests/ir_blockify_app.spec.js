@@ -20,7 +20,9 @@ test('Blockify UI: introspect html.parser → Library blocks, method round-trips
   const count = () => page.evaluate(() => window.BlockPyLibRegistry.listLibBlocks().reduce((n, g) => n + g.blocks.length, 0));
   const before = await count();
 
-  await page.locator('#tab-btn-library').click();
+  // LibraryManager 는 rail 의 'AI 라이브러리' 팝업(#tab-btn-ai)에 있다. 예전 스펙이 쓰던
+  // `#tab-btn-library` 컨트롤은 이 레이아웃에 존재하지 않는다(디자인 v2 이전부터 부재).
+  await page.locator('#tab-btn-ai').click();
   await page.locator('#blockify-mod-input').fill('html.parser');
   await page.getByRole('button', { name: /Blockify/ }).click();
 

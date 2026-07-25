@@ -203,20 +203,20 @@ export default function TeachableMachine() {
           아래 클래스 목록/캡처 버튼을 밀어냈다 — 누르고 있던 버튼이 커서 밑에서 빠져나가
           mouseleave 로 캡처가 즉시 끊기는 버그였다. 박스 높이를 고정해 해결.) */}
       {camError ? (
-        <div id="tm-cam-error" style={{ color: '#c0392b', fontSize: 13 }}>{camError}</div>
+        <div id="tm-cam-error" style={{ color: 'var(--stop-ink)', fontSize: 13 }}>{camError}</div>
       ) : (
         <div
           id="tm-webcam-wrap"
-          style={{ position: 'relative', width: '100%', maxWidth: 320, aspectRatio: '4 / 3', background: '#000', borderRadius: 6, overflow: 'hidden' }}
+          style={{ position: 'relative', width: '100%', maxWidth: 320, aspectRatio: '4 / 3', background: 'var(--media-bg)', borderRadius: 'var(--r-control)', overflow: 'hidden' }}
         >
           <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'contain', display: camActive ? 'block' : 'none' }} />
           {!camActive && (
-            <div id="tm-webcam-placeholder" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
+            <div id="tm-webcam-placeholder" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--faint)', fontSize: 13 }}>
               카메라 미리보기
             </div>
           )}
           {mode === 'trained' && preview && (
-            <div id="tm-preview-overlay" style={{ position: 'absolute', left: 8, bottom: 8, background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '4px 8px', borderRadius: 6, fontSize: 13 }}>
+            <div id="tm-preview-overlay" style={{ position: 'absolute', left: 8, bottom: 8, background: 'var(--scrim-strong)', color: '#fff', padding: '4px 8px', borderRadius: 'var(--r-control)', fontSize: 13 }}>
               <span id="tm-preview-label">{preview.label}</span> · {(preview.confidence * 100).toFixed(0)}%
             </div>
           )}
@@ -258,8 +258,8 @@ export default function TeachableMachine() {
 
       {/* 학습 완료 + 저장 */}
       {mode === 'trained' && (
-        <div id="tm-trained" style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: 8 }}>
-          <div style={{ fontSize: 13, color: '#166534' }}>학습 완료 (epoch {trainedInfo ? trainedInfo.epochs : ''})</div>
+        <div id="tm-trained" style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
+          <div style={{ fontSize: 13, color: 'var(--run-ink)' }}>학습 완료 (epoch {trainedInfo ? trainedInfo.epochs : ''})</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input id="tm-filename" value={filename} onChange={(e) => setFilename(e.target.value)} placeholder="모델 파일 이름" style={{ flex: '1 1 120px', minWidth: 100 }} />
             <span style={{ fontSize: 12, opacity: 0.6 }}>.json</span>

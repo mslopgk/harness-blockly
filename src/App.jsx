@@ -1469,7 +1469,7 @@ for i in range(4):
 
   return (
     <div className="bpy-app">
-      {/* ── TOP BAR (60px) ─────────────────────────────────────── */}
+      {/* ── TOP BAR (56px) — 로고 · 파일칩 … 유틸 | 예제 · 변환 · 저장 | 정지 · ▶실행 ── */}
       <header className="bpy-topbar">
         <div className="bpy-brand">
           <div className="bpy-logo" aria-hidden="true">
@@ -1483,24 +1483,6 @@ for i in range(4):
 
         <div className="bpy-topbar-sp" />
 
-        <button className="bpy-btn save" onClick={() => saveActiveFile()} disabled={!activeFile} aria-label="저장" title="저장 (Ctrl+S)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M5 3h11l3 3v15H5z" /><path d="M8 3v6h7" /></svg>저장
-        </button>
-        <button className="bpy-btn run" onClick={handleRunShell} disabled={isRunning} aria-label="실행" title="실제 파이썬으로 실행">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>실행
-        </button>
-        <button className="bpy-btn stop" onClick={handleStopExecution} disabled={!isRunning} aria-label="정지" title="실행 중지">
-          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>정지
-        </button>
-        <button className="bpy-btn conv" onClick={handleSyncToBlocksClick} aria-label="변환" title="파이썬 → 블록 변환">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M7 8l-4 4 4 4" /><path d="M17 8l4 4-4 4" /><path d="M14 4l-4 16" /></svg>변환
-        </button>
-
-        <span className="bpy-topbar-div" />
-
-        <button className="bpy-btn" onClick={() => setActiveAuxTab('examples')} aria-label="예제" title="예제 코드 불러오기">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 5h16v14H4z" /><path d="M4 9h16" /></svg>예제
-        </button>
         <label className="bpy-btn ico" htmlFor="cv-image-upload" aria-label="이미지 삽입" title="이미지 삽입">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="2" /><path d="M21 17l-5-5-6 6" /></svg>
           <input id="cv-image-upload" type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload(e.target.files && e.target.files[0])} />
@@ -1508,7 +1490,32 @@ for i in range(4):
         <button className="bpy-btn ico" onClick={toggleFullscreen} aria-label="전체화면" title="전체화면">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
         </button>
-        <div className="bpy-avatar" aria-hidden="true">지</div>
+
+        <span className="bpy-topbar-div" />
+
+        <button
+          id="tab-btn-examples"
+          className="bpy-btn"
+          onClick={() => { setActiveAuxTab('examples'); setAuxOpen(true); }}
+          aria-label="예제" title="예제 코드 불러오기"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 5h16v14H4z" /><path d="M4 9h16" /></svg>예제
+        </button>
+        <button className="bpy-btn conv" onClick={handleSyncToBlocksClick} aria-label="변환" title="파이썬 → 블록 변환">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M7 8l-4 4 4 4" /><path d="M17 8l4 4-4 4" /><path d="M14 4l-4 16" /></svg>변환
+        </button>
+        <button className="bpy-btn save" onClick={() => saveActiveFile()} disabled={!activeFile} aria-label="저장" title="저장 (Ctrl+S)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M5 3h11l3 3v15H5z" /><path d="M8 3v6h7" /></svg>저장
+        </button>
+
+        <span className="bpy-topbar-div" />
+
+        <button className="bpy-btn stop" onClick={handleStopExecution} disabled={!isRunning} aria-label="정지" title="실행 중지">
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>정지
+        </button>
+        <button className="bpy-btn run" onClick={handleRunShell} disabled={isRunning} aria-label="실행" title="실제 파이썬으로 실행">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>실행
+        </button>
       </header>
 
       {/* ── BODY: rail | files | stage ─────────────────────────── */}
@@ -1520,6 +1527,7 @@ for i in range(4):
             return (
               <button
                 key={t.key}
+                id={`tab-btn-${t.key}`}
                 className={`bpy-rtab ${on ? 'on' : ''}`}
                 aria-label={t.label}
                 aria-pressed={on}
@@ -1634,28 +1642,28 @@ for i in range(4):
                 className={`tab-btn ${activeEditorTab === 'blockly' ? 'active' : ''}`}
                 onClick={() => setActiveEditorTab('blockly')}
               >
-                <i className="fa-solid fa-cubes"></i> Visual Blocks Workspace
+                <i className="fa-solid fa-cubes"></i> 블록 작업실
               </button>
               <button 
                 id="tab-btn-python"
                 className={`tab-btn ${activeEditorTab === 'python' ? 'active' : ''}`}
                 onClick={() => setActiveEditorTab('python')}
               >
-                <i className="fa-brands fa-python"></i> Python Source Editor
+                <i className="fa-brands fa-python"></i> 파이썬 코드
               </button>
               <button 
                 id="tab-btn-desugar"
                 className={`tab-btn ${activeEditorTab === 'desugar' ? 'active' : ''}`}
                 onClick={() => setActiveEditorTab('desugar')}
               >
-                <i className="fa-solid fa-wand-magic-sparkles"></i> Desugared Code Normalizer
+                <i className="fa-solid fa-wand-magic-sparkles"></i> 코드 정리(desugar)
               </button>
               <button
                 id="tab-btn-ast"
                 className={`tab-btn ${activeEditorTab === 'ast' ? 'active' : ''}`}
                 onClick={() => setActiveEditorTab('ast')}
               >
-                <i className="fa-solid fa-diagram-project"></i> AST Parser Tree
+                <i className="fa-solid fa-diagram-project"></i> 구문 트리(AST)
               </button>
               {/* 액션 버튼(저장/실행/정지/변환/예제/이미지)은 상단바(bpy-topbar)로 승격됨 */}
             </div>
