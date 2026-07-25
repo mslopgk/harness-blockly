@@ -509,6 +509,38 @@ function buildIrToolbox() {
   return { kind: 'categoryToolbox', contents };
 }
 
+// ── 툴박스 카테고리 아이콘 슬러그 (MakeCode 규격: 이름 옆 컬러 아이콘) ──────────────────────
+// MakeCode 는 카테고리마다 아이콘을 선언한다(자체 아이콘 폰트). 우리는 오프라인 Electron 앱이라
+// 외부 폰트/CDN 을 못 쓰므로, 카테고리 행에 `bpy-cat-<slug>` 클래스를 붙이고 index.css 가
+// 인라인 SVG(data URI) 를 mask-image 로 그린다. 색은 --cat-color(카테고리색) 를 쓰고 선택 시
+// 툴박스 배경색으로 반전 — MakeCode 와 동일한 거동.
+//
+// ⚠ 클래스는 카테고리 정의의 cssconfig 로 주지 않는다: Blockly 의 cssConfig.row 는 기본 클래스를
+//   **덮어써서** `.blocklyToolboxCategory` 가 사라지고 툴박스 스타일 전체가 무효화된다(실측 확인).
+//   대신 BlocklyEditor.jsx 의 카테고리 페인트 루프가 렌더된 라벨 텍스트로 이 함수를 호출해
+//   classList 에 추가한다(Blockly 내부 클래스명에 의존하지 않아 버전 안전, 툴박스 재생성 시 재적용).
+// 매칭 안 되는 이름은 CSS 의 기본 아이콘(.bpy-cat 공통 규칙)으로 떨어진다.
+function catIconSlug(rawName) {
+  const n = String(rawName || '').replace(/^★\s*/, '').trim();
+  const lower = n.toLowerCase();
+  // 이름 → 아이콘 슬러그. 우리 코어 카테고리 + 자주 쓰는 stdlib + 서브카테고리.
+  const MAP = {
+    'values': 'values', 'collections': 'collections', 'operators': 'operators',
+    'access': 'access', 'variables': 'variables', 'control flow': 'control',
+    'functions': 'functions', 'built-ins': 'builtins', 'classes': 'classes',
+    'exceptions': 'exceptions', 'imports': 'imports', 'sugar': 'sugar',
+    'async': 'async', 'text': 'text', 'match': 'match', 'types': 'types',
+    // 서브카테고리
+    'constants': 'constants', 'properties': 'properties', 'macros': 'macros',
+    'other': 'other', '더 보기': 'more',
+    // 자주 쓰는 라이브러리(있으면 의미 아이콘, 없으면 기본)
+    'random': 'random', 'time': 'time', 'datetime': 'time', 'math': 'math',
+    'statistics': 'stats', 'json': 'json', 'functools': 'functions', 're': 'match',
+    'cv2': 'vision', 'tm': 'vision', 'dobotkit': 'robot',
+  };
+  return MAP[lower] || 'lib';
+}
+
 // ── block type -> 엔트리 톤 키 (Blockly 테마용) ──────────────────────────────────────────
 // IR_TOOLBOX_TABLE 에서 DERIVE 한다: 카테고리 탭 색과 그 카테고리 블록 본체 색이 같은 한 줄에서
 //나오므로 팔레트가 탭과 어긋날 수 없다(중복 정의 없음). BlocklyEditor 가 이 표를 읽어 각
@@ -534,4 +566,5 @@ api.BlockPyBuildIrToolbox = buildIrToolbox;     // Phase 5: re-callable to refre
 // 디자인 v2 팔레트 공개(테마 계층에서 소비). 하드코딩 hex 를 컴포넌트에 흩뿌리지 않기 위한 토큰.
 api.BlockPyEntryPalette = ENTRY_PALETTE;        // 엔트리 4단 톤 표 (색의 유일한 출처)
 api.BlockPyBlockTones = blockTones();           // ir_* 블록 타입 -> 톤 키
-if (typeof module !== 'undefined') module.exports = { buildIrToolbox, IR_TOOLBOX_TABLE, ENTRY_PALETTE, blockTones };
+api.BlockPyCatIconSlug = catIconSlug;           // 카테고리명 -> 아이콘 슬러그(BlocklyEditor 가 classList 로 부착)
+if (typeof module !== 'undefined') module.exports = { buildIrToolbox, IR_TOOLBOX_TABLE, ENTRY_PALETTE, blockTones, catIconSlug };

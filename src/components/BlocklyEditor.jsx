@@ -247,6 +247,14 @@ export default function BlocklyEditor({
         // border-left-color 인라인으로만 주므로, CSS 가 배경에도 쓸 수 있게 --cat-color 로 심는다.
         // (index.css 의 [aria-selected="true"] 규칙이 이 변수를 읽는다.)
         cat.style.setProperty('--cat-color', hue);
+        // MakeCode 규격: 이름 옆 컬러 아이콘. 카테고리명 -> 아이콘 슬러그 클래스를 행에 붙이면
+        // index.css 의 .bpy-cat-<slug> 가 mask-image 로 인라인 SVG 를 그린다.
+        // (Blockly 의 cssConfig.row 로 주면 기본 클래스를 덮어써 툴박스 스타일이 전부 죽는다 —
+        //  그래서 렌더된 라벨 텍스트로 여기서 부착한다. 툴박스 재생성 시 이 루프가 다시 돈다.)
+        const slugOf = window.BlockPyCatIconSlug;
+        if (typeof slugOf === 'function' && !cat.classList.contains('bpy-cat')) {
+          cat.classList.add('bpy-cat', `bpy-cat-${slugOf(label.textContent || '')}`);
+        }
         const readable = readableOn(hue, tbBg);
         if (readable) label.style.color = readable;
       });

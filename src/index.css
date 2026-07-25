@@ -2305,7 +2305,59 @@ code, pre, .font-mono { font-family: var(--font-mono); }
 .blocklyToolboxCategoryContainer[aria-selected="true"] > .blocklyToolboxCategory .blocklyToolboxCategoryLabel {
   color: var(--panel) !important;      /* 인라인 라벨색을 이기려면 !important 필요 */
 }
-.blocklyToolboxCategoryIcon { width: 0 !important; margin: 0 !important; }
+/* ── 카테고리 아이콘 (MakeCode: 이름 옆 컬러 아이콘) ───────────────────────────
+   MakeCode 는 자체 아이콘 폰트를 쓰지만 우리는 오프라인 앱이라 CDN/폰트 금지 →
+   인라인 SVG(data URI)를 mask-image 로 칠한다. 색 = --cat-color(카테고리색),
+   선택 시 툴박스 배경색으로 반전(MakeCode 와 동일). 아이콘 클래스는 irToolbox.js 의
+   withCategoryIconClasses() 가 카테고리 행에 bpy-cat-<slug> 로 붙인다. */
+.blocklyToolboxCategoryIcon {
+  /* Blockly 는 하위 카테고리가 없는(리프) 카테고리의 아이콘 슬롯을 visibility:hidden 으로 숨긴다
+     (펼침/접힘 화살표 자리로만 쓰기 때문). 우리는 모든 카테고리에 아이콘을 그리므로 강제 표시.
+     — 실측: 리프=hidden / 펼침가능=inline style 로 visible. */
+  visibility: visible !important;
+  display: inline-block !important;
+  width: 24px !important; height: 22px; flex: none;
+  margin: 0 7px 0 0 !important; padding: 0 !important;
+  background-color: var(--cat-color, var(--muted));
+  -webkit-mask-image: var(--cat-icon); mask-image: var(--cat-icon);
+  -webkit-mask-size: 20px 20px; mask-size: 20px 20px;
+  -webkit-mask-position: center; mask-position: center;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+}
+.blocklyToolboxCategoryContainer[aria-selected="true"] > .blocklyToolboxCategory .blocklyToolboxCategoryIcon {
+  background-color: var(--panel);
+}
+/* 아이콘 정의 — Lucide 계열 스트로크 글리프. 기본(.bpy-cat)은 패키지 아이콘 폴백이라
+   새 라이브러리/큐레이션 탭도 아이콘을 갖는다. */
+.bpy-cat { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 8l-9-5-9 5v8l9 5 9-5V8z'/><path d='M3 8l9 5 9-5M12 13v8'/></svg>"); }
+.bpy-cat-values { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 9h16M4 15h16M10 3v18M16 3v18'/></svg>"); }
+.bpy-cat-collections { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2l9 5-9 5-9-5 9-5z'/><path d='M3 12l9 5 9-5M3 17l9 5 9-5'/></svg>"); }
+.bpy-cat-operators { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M19 5L5 19'/><circle cx='7' cy='7' r='2'/><circle cx='17' cy='17' r='2'/></svg>"); }
+.bpy-cat-access { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M8 4H5v16h3M16 4h3v16h-3'/></svg>"); }
+.bpy-cat-variables { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><ellipse cx='12' cy='6' rx='9' ry='3'/><path d='M3 6v6c0 1.7 4 3 9 3s9-1.3 9-3V6M3 12v6c0 1.7 4 3 9 3s9-1.3 9-3v-6'/></svg>"); }
+.bpy-cat-control { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M17 2l4 4-4 4M3 11v-1a4 4 0 014-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 01-4 4H3'/></svg>"); }
+.bpy-cat-functions { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M8 4a2 2 0 00-2 2v3a2 2 0 01-2 2 2 2 0 012 2v3a2 2 0 002 2M16 4a2 2 0 012 2v3a2 2 0 002 2 2 2 0 00-2 2v3a2 2 0 01-2 2'/></svg>"); }
+.bpy-cat-builtins { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3l9 4.5v9L12 21l-9-4.5v-9L12 3z'/><path d='M12 12l9-4.5M12 12v9M12 12L3 7.5'/></svg>"); }
+.bpy-cat-classes { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='4' y='4' width='7' height='7' rx='1'/><rect x='13' y='4' width='7' height='7' rx='1'/><rect x='4' y='13' width='7' height='7' rx='1'/><rect x='13' y='13' width='7' height='7' rx='1'/></svg>"); }
+.bpy-cat-exceptions { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3l9 16H3l9-16z'/><path d='M12 9v5M12 17.5h.01'/></svg>"); }
+.bpy-cat-imports { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3v12M7 11l5 5 5-5M4 20h16'/></svg>"); }
+.bpy-cat-sugar { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z'/><path d='M18 17l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z'/></svg>"); }
+.bpy-cat-async { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 12a9 9 0 11-3.5-7.1'/><path d='M21 3v5h-5'/><path d='M12 8v4l3 2'/></svg>"); }
+.bpy-cat-text { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 5h14M12 5v14M9 19h6'/></svg>"); }
+.bpy-cat-match { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='7'/><path d='M20 20l-4.4-4.4'/></svg>"); }
+.bpy-cat-types { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L3 13V4h9l8.6 8.6a2 2 0 010 2.8z'/><path d='M7.5 7.5h.01'/></svg>"); }
+.bpy-cat-random { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='4' y='4' width='16' height='16' rx='2'/><path d='M8.5 8.5h.01M15.5 15.5h.01M12 12h.01'/></svg>"); }
+.bpy-cat-time { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='9'/><path d='M12 7v5l4 2'/></svg>"); }
+.bpy-cat-math { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 5h12l-7 7 7 7H6'/></svg>"); }
+.bpy-cat-stats { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 20V10M12 20V4M19 20v-7'/></svg>"); }
+.bpy-cat-json { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 4H4v16h2M18 4h2v16h-2M10 9h4M10 15h4'/></svg>"); }
+.bpy-cat-vision { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z'/><circle cx='12' cy='12' r='3'/></svg>"); }
+.bpy-cat-robot { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='4' y='7' width='16' height='10' rx='2'/><path d='M12 3v4M8 21h8M9.5 11.5h.01M14.5 11.5h.01'/></svg>"); }
+.bpy-cat-constants { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='5' y='11' width='14' height='9' rx='2'/><path d='M9 11V8a3 3 0 016 0v3'/></svg>"); }
+.bpy-cat-properties { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 8h10M18 8h2M4 16h4M12 16h8M14 6v4M8 14v4'/></svg>"); }
+.bpy-cat-macros { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M13 3L5 14h6l-1 7 8-11h-6l1-7z'/></svg>"); }
+.bpy-cat-other { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 12h.01M12 12h.01M18 12h.01'/></svg>"); }
+.bpy-cat-more { --cat-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>"); }
 .blocklyToolboxCategoryLabel {
   font-family: var(--font-sans) !important;
   font-size: 15px !important;          /* ③ MakeCode 1.15rem 급 */
