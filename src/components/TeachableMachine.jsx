@@ -1,16 +1,38 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { featurize, buildHead, trainHead, predictTop, serializeModel } from '../utils/teachable';
+import { featurize, buildHead, trainHead, predictTop } from '../utils/teachable';
 
-// Teachable Machine 패널 (TM 탭). 프론트 전용.
+// Teachable Machine 패널 (TM 탭).
 //  idle → collecting(클래스별 웹캠 샘플 수집) → trained(라이브 미리보기) → 저장.
-//  MobileNet 임베딩 + 작은 dense head 학습. 저장은 <이름>.json (blockpy-tm-v1) → /api/fs/file.
-//  블록/파이썬 연동 없음(후속 단계).
+//
+//  샘플 하나 = { embedding: tf.Tensor2D [1,D], jpeg: data URL }.
+//   - embedding: 브라우저 TF.js MobileNet — 패널 안에서 즉시 학습/라이브 미리보기용(피드백 전용).
+//   - jpeg: 원본 프레임 — "저장" 시 백엔드로 보내 파이썬 runtime/tm.py 가 다시 학습한다.
+//  저장 산출물은 <이름>.npz (파이썬 네이티브)라 학생 코드에서 tm.load_model('<이름>.npz') 로 바로
+//  쓸 수 있다. 브라우저 TF.js MobileNet 과 파이썬 Keras MobileNetV2 는 임베딩 공간이 달라서
+//  브라우저에서 학습한 head 를 그대로 내보낼 수는 없다 — 그래서 프레임을 보내 파이썬이 학습한다.
 
-const CAPTURE_MS = 100; // 누르는 동안 프레임 캡처 간격
+const CAPTURE_MS = 100;        // 누르는 동안 프레임 캡처 간격
+const CAPTURE_MAX_SIDE = 224;  // 백엔드로 보낼 JPEG 의 긴 변 (MobileNet 입력 크기)
+const MAX_SAMPLES = 600;       // 백엔드 /api/tm/train 의 상한과 동일
+
+// 비디오 현재 프레임 → 축소된 JPEG data URL (백엔드 학습용 원본 프레임).
+function frameToJpeg(vid) {
+  const w = vid.videoWidth;
+  const h = vid.videoHeight;
+  if (!w || !h) return '';
+  const scale = Math.min(1, CAPTURE_MAX_SIDE / Math.max(w, h));
+  const cw = Math.max(1, Math.round(w * scale));
+  const ch = Math.max(1, Math.round(h * scale));
+  const canvas = document.createElement('canvas'); // 오프스크린 — DOM 에 붙이지 않는다
+  canvas.width = cw;
+  canvas.height = ch;
+  canvas.getContext('2d').drawImage(vid, 0, 0, cw, ch);
+  return canvas.toDataURL('image/jpeg', 0.8);
+}
 
 export default function TeachableMachine() {
   const [classes, setClasses] = useState([
-    { name: '클래스 1', samples: [] }, // samples: tf.Tensor2D [1,D]
+    { name: '클래스 1', samples: [] }, // samples: [{ embedding: tf.Tensor2D [1,D], jpeg: dataURL }]
     { name: '클래스 2', samples: [] },
   ]);
   const [mode, setMode] = useState('idle');        // 'idle' | 'collecting' | 'training' | 'trained'
@@ -20,6 +42,7 @@ export default function TeachableMachine() {
   const [preview, setPreview] = useState(null);    // {label, confidence}
   const [filename, setFilename] = useState('my-model');
   const [saveStatus, setSaveStatus] = useState('');
+  const [saving, setSaving] = useState(false);     // 백엔드(파이썬) 학습 진행 중
   const [trainedInfo, setTrainedInfo] = useState(null); // {epochs}
 
   const videoRef = useRef(null);
@@ -42,8 +65,11 @@ export default function TeachableMachine() {
   }, []);
 
   // 언마운트 시: 수집된 샘플 텐서 + 학습된 head 모델 dispose(TF.js 메모리 누수 방지).
+  // (샘플의 jpeg 는 그냥 문자열이라 dispose 대상이 아니다 — embedding 만 정리한다.)
   useEffect(() => () => {
-    classesRef.current.forEach((c) => c.samples.forEach((t) => { try { t.dispose(); } catch (_) {} }));
+    classesRef.current.forEach((c) => c.samples.forEach((s) => {
+      try { s.embedding.dispose(); } catch (_) {}
+    }));
     if (headRef.current) { try { headRef.current.dispose(); } catch (_) {} }
   }, []);
 
@@ -75,16 +101,21 @@ export default function TeachableMachine() {
     };
   }, [camActive]);
 
-  // ── 한 프레임 → 임베딩 → 해당 클래스에 추가 ──
+  // ── 한 프레임 → (브라우저 임베딩 + 원본 JPEG) → 해당 클래스에 추가 ──
+  // 임베딩은 패널 안 즉석 학습/미리보기용, JPEG 는 저장 시 파이썬 학습용.
   const captureOne = useCallback(async (idx) => {
     const vid = videoRef.current;
     if (!vid || !vid.videoWidth) return;
+    if (classesRef.current.reduce((n, c) => n + c.samples.length, 0) >= MAX_SAMPLES) {
+      setCamError(`샘플은 최대 ${MAX_SAMPLES}장까지 모을 수 있습니다.`);
+      return;
+    }
     try {
+      const jpeg = frameToJpeg(vid); // 임베딩 전에 떠야 같은 순간의 프레임이 잡힌다
       const emb = await featurize(vid);
-      setClasses((prev) => {
-        const next = prev.map((c, i) => (i === idx ? { ...c, samples: [...c.samples, emb] } : c));
-        return next;
-      });
+      setClasses((prev) => prev.map((c, i) => (
+        i === idx ? { ...c, samples: [...c.samples, { embedding: emb, jpeg }] } : c
+      )));
     } catch (e) {
       setCamError(e.message || '샘플 수집 실패');
     }
@@ -120,9 +151,9 @@ export default function TeachableMachine() {
     setStatus('학습 중…');
     let head = null;
     try {
-      const inputDim = classes[0].samples[0].shape[1];
+      const inputDim = classes[0].samples[0].embedding.shape[1];
       head = await buildHead(inputDim, classes.length);
-      const samples = classes.flatMap((c, ci) => c.samples.map((embedding) => ({ classIndex: ci, embedding })));
+      const samples = classes.flatMap((c, ci) => c.samples.map((s) => ({ classIndex: ci, embedding: s.embedding })));
       const epochs = 20;
       await trainHead(head, samples, classes.length, {
         epochs,
@@ -162,36 +193,46 @@ export default function TeachableMachine() {
     return () => { stop = true; if (previewRAF.current) clearTimeout(previewRAF.current); };
   }, [mode, classes]);
 
-  // ── 저장: <이름>.json → /api/fs/file, 실패 시 브라우저 다운로드 폴백 ──
+  // ── 저장: 수집한 원본 프레임을 백엔드로 보내 파이썬(runtime/tm.py)이 학습·저장 → <이름>.npz ──
+  // 브라우저에서 학습한 head 를 내보내지 않는 이유: TF.js MobileNet 임베딩 ≠ Keras MobileNetV2
+  // 임베딩이라 파이썬 tm.load_model 이 그 가중치를 재사용할 수 없다. 프레임을 보내 다시 학습한다.
+  const canSave = classes.length >= 2
+    && classes.every((c) => String(c.name || '').trim() && c.samples.some((s) => s.jpeg))
+    && new Set(classes.map((c) => String(c.name || '').trim())).size === classes.length;
+
   const save = useCallback(async () => {
-    if (!headRef.current) { setSaveStatus('먼저 학습을 완료하세요.'); return; }
-    const cleaned = String(filename || '').trim().replace(/\.json$/i, '');
+    if (!canSave) {
+      setSaveStatus('클래스가 2개 이상이고, 각 클래스에 이름과 샘플이 1장 이상 있어야 저장할 수 있습니다(이름 중복 불가).');
+      return;
+    }
+    const cleaned = String(filename || '').trim().replace(/\.(npz|json)$/i, '');
     if (!cleaned) { setSaveStatus('파일 이름을 입력하세요.'); return; }
-    const fname = cleaned + '.json';
-    setSaveStatus('저장 중…');
+    const labels = classes.map((c) => String(c.name).trim());
+    const samples = classes.flatMap((c, i) => c.samples
+      .filter((s) => s.jpeg)
+      .map((s) => ({ label: labels[i], jpegBase64: s.jpeg })));
+    setSaving(true);
+    setSaveStatus('파이썬으로 학습 중… (수십 초 걸릴 수 있어요)');
     try {
-      const json = await serializeModel({ head: headRef.current, labels: classes.map((c) => c.name) });
-      try {
-        const r = await fetch('/api/fs/file', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: fname, content: json }),
-        });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        setSaveStatus(`저장됨: ${fname} (워크스페이스)`);
-      } catch (backendErr) {
-        // 백엔드 미가동 → 브라우저 다운로드 폴백
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = fname; a.click();
-        URL.revokeObjectURL(url);
-        setSaveStatus(`다운로드됨: ${fname} (백엔드 미가동 — 폴백)`);
+      const r = await fetch('/api/tm/train', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: cleaned + '.npz', labels, samples, epochs: 30 }),
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      if (d && d.ok) {
+        setSaveStatus(`저장 완료: ${d.path} — 코드에서 tm.load_model('${d.path}') 로 사용하세요.`);
+      } else {
+        const err = (d && d.error) || '알 수 없는 오류';
+        setSaveStatus(`학습/저장 실패: ${err}${d && d.hint ? ` (${d.hint})` : ''}`);
       }
     } catch (e) {
-      setSaveStatus('저장 실패: ' + (e.message || e));
+      setSaveStatus(`학습/저장 실패: 백엔드에 연결할 수 없습니다 (${e.message || e}). 서버(npm run server)가 실행 중인지 확인하세요.`);
+    } finally {
+      setSaving(false);
     }
-  }, [filename, classes]);
+  }, [canSave, filename, classes]);
 
   return (
     <div className="tm-panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -260,10 +301,15 @@ export default function TeachableMachine() {
       {mode === 'trained' && (
         <div id="tm-trained" style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
           <div style={{ fontSize: 13, color: 'var(--run-ink)' }}>학습 완료 (epoch {trainedInfo ? trainedInfo.epochs : ''})</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>
+            저장하면 모아 둔 사진으로 <b>파이썬이 다시 학습</b>해 <code>.npz</code> 모델을 워크스페이스에 만듭니다.
+          </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input id="tm-filename" value={filename} onChange={(e) => setFilename(e.target.value)} placeholder="모델 파일 이름" style={{ flex: '1 1 120px', minWidth: 100 }} />
-            <span style={{ fontSize: 12, opacity: 0.6 }}>.json</span>
-            <button id="tm-save" className="btn btn-primary btn-sm" onClick={save}>저장</button>
+            <input id="tm-filename" value={filename} onChange={(e) => setFilename(e.target.value)} placeholder="모델 파일 이름" disabled={saving} style={{ flex: '1 1 120px', minWidth: 100 }} />
+            <span style={{ fontSize: 12, opacity: 0.6 }}>.npz</span>
+            <button id="tm-save" className="btn btn-primary btn-sm" onClick={save} disabled={saving || !canSave}>
+              {saving ? '학습 중…' : '저장'}
+            </button>
           </div>
           {saveStatus && <div id="tm-save-status" style={{ fontSize: 13 }}>{saveStatus}</div>}
         </div>
