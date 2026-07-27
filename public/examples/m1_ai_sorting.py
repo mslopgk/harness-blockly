@@ -3,14 +3,24 @@
 import tm
 import cv2
 import dobotkit
+import os
+
+# 학습한 모델을 저장해두는 파일. 다음 실행부터는 이 파일을 불러와 바로 사용한다.
+MODEL_FILE = 'color_model.npz'
 
 cam = cv2.VideoCapture(0)
 
-# 1) 색상 분류 모델 만들고 학습 (각 색 물체를 카메라로 보여주며 수집)
-model = tm.Model(['빨강', '파랑', '노랑'])
-ok, frame = cam.read()
-model.add_example(frame, '빨강')
-model.train()
+# 1) 모델 준비 — 저장된 모델이 있으면 불러오고, 없으면 새로 배운 뒤 저장한다
+if os.path.exists(MODEL_FILE):
+    model = tm.load_model(MODEL_FILE)
+    print('저장된 모델을 불러왔습니다:', MODEL_FILE)
+else:
+    model = tm.Model(['빨강', '파랑', '노랑'])
+    ok, frame = cam.read()
+    model.add_example(frame, '빨강')
+    model.train()
+    model.save(MODEL_FILE)
+    print('학습한 모델을 저장했습니다:', MODEL_FILE)
 
 # 2) 로봇팔 연결하고 시작 자세로
 try:

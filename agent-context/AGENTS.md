@@ -28,7 +28,33 @@
 - `m.predict(frame)` → `(label, confidence)` 튜플
 - `m.predict_proba(frame)` → `{label: 확률}` 딕셔너리
 - `m.labels` — 클래스 이름 리스트(속성)
-- `m.save(path)` / `tm.load_model(path)` → Model — 학습된 모델 저장/불러오기
+- `m.save(path)` / `tm.load_model(path)` → Model — 학습된 모델 저장/불러오기 (`.npz` 형식)
+
+#### 학습한 모델은 반드시 재사용하라 (중요)
+매 실행마다 카메라로 다시 가르치게 만들지 마라. **저장된 모델이 있으면 불러오고, 없을 때만
+학습한 뒤 저장**하는 패턴을 쓴다(수업 예제 m1/m2/h2/h3 가 모두 이 형태다):
+
+```python
+import os, tm
+MODEL_FILE = 'color_model.npz'
+if os.path.exists(MODEL_FILE):
+    model = tm.load_model(MODEL_FILE)
+else:
+    model = tm.Model(['빨강', '파랑'])
+    model.add_example(frame, '빨강')
+    model.train()
+    model.save(MODEL_FILE)
+```
+
+#### ⚠ TM 패널(화면 오른쪽 도구)에서 저장한 모델은 파이썬에서 못 쓴다
+플랫폼의 **TM 패널은 `<이름>.json`**(brow­ser 학습, blockpy-tm-v1)으로 저장하는데, 파이썬
+`tm.load_model()` 은 **`.npz`(numpy)** 만 읽는다. 형식도 다르고, 특징 추출기도 다르다
+(패널=TF.js MobileNet / 파이썬=Keras MobileNetV2) — 임베딩 공간이 달라 억지로 변환해도
+정확도가 나오지 않는다. 그러니:
+- 파이썬 코드에서 `tm.load_model('*.json')` 을 만들지 마라. 반드시 파이썬에서 학습·저장한
+  `.npz` 를 쓴다.
+- 학생이 "TM 패널에서 만든 모델을 코드에서 쓰고 싶다"고 하면, 지금은 **파이썬 쪽에서 한 번
+  학습해 `.npz` 로 저장**하는 방식으로 안내하라(위 패턴).
 
 ### dobotkit — 로봇(`import dobotkit`)
 로봇팔 MagicianLite:

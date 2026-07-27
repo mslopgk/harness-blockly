@@ -2,10 +2,28 @@
 # 고등 파이썬 수업: 수집→학습→추론(Teachable Machine 스타일)을 파이썬으로 구현하고,
 # 예측 결과로 Magician GO 를 주행시키는 자율주행 루프를 함수로 구조화한다.
 import tm
+import os
 import cv2
 import dobotkit
 
 DIRECTIONS = ['왼쪽', '직진', '오른쪽']
+
+
+MODEL_FILE = 'drive_model.npz'
+
+
+def get_drive_model(cam):
+    """저장된 모델이 있으면 불러오고, 없으면 새로 학습한 뒤 저장한다.
+
+    한 번 학습해두면 다음 실행부터는 길 사진을 다시 모으지 않아도 된다.
+    """
+    if os.path.exists(MODEL_FILE):
+        print('저장된 모델을 불러왔습니다:', MODEL_FILE)
+        return tm.load_model(MODEL_FILE)
+    model = collect_and_train(cam)
+    model.save(MODEL_FILE)
+    print('학습한 모델을 저장했습니다:', MODEL_FILE)
+    return model
 
 
 def collect_and_train(cam, samples_per_class=30):
@@ -33,7 +51,7 @@ def drive(car, label):
 
 def main():
     cam = cv2.VideoCapture(0)
-    model = collect_and_train(cam)
+    model = get_drive_model(cam)
 
     try:
         car = dobotkit.MagicianGO.open('COM5')

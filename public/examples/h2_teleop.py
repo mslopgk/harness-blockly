@@ -2,10 +2,28 @@
 # 고등 파이썬 수업: 제스처 분류(Teachable Machine)를 파이썬으로 학습하고,
 # 인식 결과를 로봇 동작에 매핑하는 제어 루프를 함수로 구조화한다.
 import tm
+import os
 import cv2
 import dobotkit
 
 GESTURES = ['위', '아래', '왼쪽', '오른쪽', '집기', '펴기']
+
+
+MODEL_FILE = 'gesture_model.npz'
+
+
+def get_gesture_model(cam):
+    """저장된 모델이 있으면 불러오고, 없으면 새로 학습한 뒤 저장한다.
+
+    한 번 학습해두면 다음 실행부터는 카메라로 다시 가르치지 않아도 된다.
+    """
+    if os.path.exists(MODEL_FILE):
+        print('저장된 모델을 불러왔습니다:', MODEL_FILE)
+        return tm.load_model(MODEL_FILE)
+    model = train_gesture_model(cam)
+    model.save(MODEL_FILE)
+    print('학습한 모델을 저장했습니다:', MODEL_FILE)
+    return model
 
 
 def train_gesture_model(cam, samples_per_class=20):
@@ -39,7 +57,7 @@ def apply_gesture(arm, label):
 
 def main():
     cam = cv2.VideoCapture(0)
-    model = train_gesture_model(cam)
+    model = get_gesture_model(cam)
 
     try:
         arm = dobotkit.MagicianLite()
