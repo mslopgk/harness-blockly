@@ -32,23 +32,34 @@ test.describe('every example converts to visible blocks', () => {
       // 4. Switch to the Blockly tab and assert real, on-screen blocks.
       await page.locator('#tab-btn-blockly').click();
       await page.waitForTimeout(500);
-      const info = await page.evaluate(() => {
+      const info = await page.evaluate(async () => {
         const ws = window.Blockly.getMainWorkspace();
-        if (!ws) return { all: 0, topVisible: 0, code: '' };
+        if (!ws) return { all: 0, topVisible: 0, code: '', err: 'no workspace' };
         const top = ws.getTopBlocks(false);
         let topVisible = 0;
         for (const b of top) {
           const r = b.getSvgRoot().getBoundingClientRect();
           if (r.width > 0 && r.height > 0) topVisible++;
         }
-        let code = '';
-        try { code = window.Blockly.Python.workspaceToCode(ws) || ''; } catch (_) {}
-        return { all: ws.getAllBlocks().length, topVisible, code: code.trim() };
+        // 블록 -> 파이썬 재생성은 **IR 경로**로 확인한다(blocklyToIr -> irToPython).
+        // 예전에는 레거시 `Blockly.Python.workspaceToCode` 를 썼는데, 그 생성기는 은퇴했고
+        // ir_* 블록을 모른다("Python generator does not know how to generate code for block
+        // type ir_assign" 로 throw) → catch 가 빈 문자열을 만들어 모든 예제가 실패했다.
+        // 제품은 정상이었고 단정만 낡았던 것(실측 확인). CLAUDE.md 의 Legacy 항목 참조.
+        let code = '', err = '';
+        try {
+          const snap = window.Blockly.serialization.workspaces.save(ws);
+          const ir = window.BlockPyIR.blocklyToIr(snap);
+          const py = await window.BlockPyAstBridge.getPyodide();
+          code = (await window.BlockPyAstBridge.irToPython(py, ir)) || '';
+        } catch (e) { err = (e && e.message) || String(e); }
+        return { all: ws.getAllBlocks().length, topVisible, code: code.trim(), err };
       });
 
       // Blocks exist, are rendered on-screen, and regenerate non-empty Python.
       expect(info.all).toBeGreaterThan(0);
       expect(info.topVisible).toBeGreaterThan(0);
+      expect(info.err, `블록 → 파이썬 재생성 실패: ${info.err}`).toBe('');
       expect(info.code.length).toBeGreaterThan(0);
     });
   }

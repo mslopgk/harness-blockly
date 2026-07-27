@@ -105,8 +105,11 @@ const DEMO_SNIPPETS = [
   // VideoCapture/read/resize), so each runs without error; output is on the canvas,
   // not stdout, so expectedStdout is empty (the test asserts render + no error).
   {
+    // 워크스페이스에 실제로 동봉되는 sample.jpg 를 읽는다(예전 "test.jpg" 는 존재하지 않아
+    // imread 가 None 을 돌려주고 cvtColor 가 C++ assertion 으로 죽었다). 파일이 없을 때도
+    // 크래시 대신 안내를 출력하도록 가드를 둔다 — 학생 화면에 OpenCV 내부 에러가 뜨면 안 된다.
     id: 'cv-gray', title: 'OpenCV: Grayscale', category: 'OpenCV', desugar: true, execute: true,
-    code: 'import cv2\nimg = cv2.imread("test.jpg")\ngray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)\ncv2.imshow("gray", gray)\ncv2.waitKey(1000)\ncv2.destroyAllWindows()',
+    code: 'import cv2\nimg = cv2.imread("sample.jpg")\nif img is None:\n    print("sample.jpg 를 찾을 수 없습니다. 파일 탭에서 이미지를 올려주세요.")\nelse:\n    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)\n    print("흑백 변환 완료")\n    cv2.imshow("gray", gray)\n    cv2.waitKey(1000)\n    cv2.destroyAllWindows()',
     expectedStdout: [],
   },
   {
@@ -118,8 +121,11 @@ const DEMO_SNIPPETS = [
     expectedStdout: [],
   },
   {
+    // cv-gray 와 같은 수정: 존재하지 않던 "photo.png" -> 동봉 sample.jpg + None 가드.
+    // 추가로 imshow 뒤에 waitKey/destroyAllWindows 를 넣는다 — 원본은 둘 다 없어서 창이
+    // 그려지지도 닫히지도 않은 채 남았다(학생 화면에 유령 창).
     id: 'cv-resize', title: 'OpenCV: Resize', category: 'OpenCV', desugar: true, execute: true,
-    code: 'import cv2\nimg = cv2.imread("photo.png")\nsmall = cv2.resize(img, (320, 240))\ncv2.imshow("resized", small)',
+    code: 'import cv2\nimg = cv2.imread("sample.jpg")\nif img is None:\n    print("sample.jpg 를 찾을 수 없습니다. 파일 탭에서 이미지를 올려주세요.")\nelse:\n    small = cv2.resize(img, (320, 240))\n    print("크기 변경 완료")\n    cv2.imshow("resized", small)\n    cv2.waitKey(1000)\n    cv2.destroyAllWindows()',
     expectedStdout: [],
   },
   {

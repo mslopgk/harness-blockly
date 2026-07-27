@@ -35,7 +35,12 @@ def main():
     cam = cv2.VideoCapture(0)
     model = collect_and_train(cam)
 
-    car = dobotkit.MagicianGO.open('COM5')
+    try:
+        car = dobotkit.MagicianGO.open('COM5')
+    except Exception as e:
+        print('주행로봇에 연결할 수 없습니다:', e)
+        print('DobotLink 를 켜고 차량 전원/무선동글을 확인한 뒤 다시 실행하세요.')
+        return
     print('자율주행을 시작합니다!')
     for step in range(500):
         ok, frame = cam.read()

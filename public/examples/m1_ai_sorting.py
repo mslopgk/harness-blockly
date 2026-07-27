@@ -13,7 +13,12 @@ model.add_example(frame, '빨강')
 model.train()
 
 # 2) 로봇팔 연결하고 시작 자세로
-arm = dobotkit.MagicianLite()
+try:
+    arm = dobotkit.MagicianLite()
+except Exception as e:
+    print('로봇팔에 연결할 수 없습니다:', e)
+    print('DobotLink 프로그램을 켜고 팔 전원을 넣은 뒤 다시 실행하세요.')
+    raise SystemExit
 arm.home()
 
 # 3) 색을 알아보고 색깔별 통으로 옮기기

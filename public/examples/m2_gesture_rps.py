@@ -14,7 +14,12 @@ model.add_example(frame, '가위')
 model.train()
 
 # 2) 로봇팔 연결
-arm = dobotkit.MagicianLite()
+try:
+    arm = dobotkit.MagicianLite()
+except Exception as e:
+    print('로봇팔에 연결할 수 없습니다:', e)
+    print('DobotLink 프로그램을 켜고 팔 전원을 넣은 뒤 다시 실행하세요.')
+    raise SystemExit
 arm.home()
 
 # 3) 사람 손을 알아보고, 이기는 손을 낸다

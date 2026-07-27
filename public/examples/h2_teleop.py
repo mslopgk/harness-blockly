@@ -41,7 +41,12 @@ def main():
     cam = cv2.VideoCapture(0)
     model = train_gesture_model(cam)
 
-    arm = dobotkit.MagicianLite()
+    try:
+        arm = dobotkit.MagicianLite()
+    except Exception as e:
+        print('로봇팔에 연결할 수 없습니다:', e)
+        print('DobotLink 프로그램을 켜고 팔 전원을 넣은 뒤 다시 실행하세요.')
+        return
     arm.home()
 
     print('이제 제스처로 팔을 조종하세요. (Ctrl+C 로 종료)')
