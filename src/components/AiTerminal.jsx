@@ -12,6 +12,7 @@ export default function AiTerminal({ active }) {
   const fitRef = useRef(null);
   const wsRef = useRef(null);
   const roRef = useRef(null);
+  const wheelRef = useRef(null);   // alt-screen 휠→방향키 리스너 {el, fn} (언마운트 시 해제)
   const [status, setStatus] = useState('connecting'); // connecting | open | closed
 
   function sendResize() {
@@ -49,6 +50,9 @@ export default function AiTerminal({ active }) {
         // 디자인 v2: 코드 폰트 스택(index.css --font-mono)과 동일 — 오프라인 시스템 폰트만.
         fontFamily: 'D2Coding, Consolas, Menlo, ui-monospace, monospace', fontSize: 13,
         cursorBlink: true, convertEol: false,
+        // 스크롤백: xterm 기본값은 1000줄이라 AI 에이전트 로그처럼 출력이 많으면 금방 잘려
+        // "위로 스크롤이 안 된다"고 느끼게 된다. 10000줄로 늘린다(줄당 수백 바이트라 메모리 영향 미미).
+        scrollback: 10000,
         // 쿨 슬레이트 다크. index.css 의 --term-bg / --term-ink 와 1:1 로 맞춘 값이다
         // (xterm 은 canvas 렌더러라 CSS 변수를 읽지 못해 여기서만 리터럴로 둔다).
         theme: { background: '#171b23', foreground: '#e8ebf1' },
@@ -64,6 +68,25 @@ export default function AiTerminal({ active }) {
         const ws = wsRef.current;
         if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'i', d }));
       });
+
+      // ── alt screen(대체 화면 버퍼)에서 휠 스크롤 ────────────────────────────────
+      // AI 에이전트(claude/opencode 등)나 vim 같은 TUI 는 alt screen 을 쓰는데, 이 모드에는
+      // 터미널 스크롤백이 **존재하지 않는다**(실측: scrollHeight == clientHeight, 휠 무반응).
+      // 표준 터미널들이 하는 대로, alt screen 에서는 휠을 방향키로 바꿔 앱에 전달해 앱 자체가
+      // 스크롤하게 한다. 일반 화면에서는 xterm 기본 스크롤백 동작을 그대로 둔다.
+      // (앱이 마우스 리포팅을 켠 경우 xterm 이 휠을 마우스 이벤트로 이미 보내므로 건드리지 않는다.)
+      const onWheel = (ev) => {
+        const t = termRef.current;
+        if (!t || t.buffer.active.type !== 'alternate') return;   // 일반 화면 → 기본 동작
+        if (t.modes && t.modes.mouseTrackingMode !== 'none') return; // 앱이 휠을 직접 받음
+        ev.preventDefault();
+        const lines = Math.max(1, Math.min(5, Math.round(Math.abs(ev.deltaY) / 40) || 1));
+        const seq = ev.deltaY < 0 ? '\x1bOA' : '\x1bOB';           // 위/아래 방향키
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'i', d: seq.repeat(lines) }));
+      };
+      screenRef.current.addEventListener('wheel', onWheel, { passive: false });
+      wheelRef.current = { el: screenRef.current, fn: onWheel };
 
       // RO 는 최초 초기화 시 한 번만 만들고 ref 에 보관한다 — [active] 재실행(fold/unfold)마다
       // disconnect 하면 재생성 없이 영구히 죽어버린다(termRef.current 가드에 막혀 재생성 안 됨).
@@ -83,6 +106,7 @@ export default function AiTerminal({ active }) {
   // 토글하므로, 이 정리는 앱 종료(언마운트) 시에만 실행된다.
   useEffect(() => () => {
     try { roRef.current?.disconnect(); } catch (_) {}
+    try { wheelRef.current?.el.removeEventListener('wheel', wheelRef.current.fn); } catch (_) {}
     try { wsRef.current?.close(); } catch (_) {}
     try { termRef.current?.dispose(); } catch (_) {}
   }, []);
