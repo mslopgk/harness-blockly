@@ -393,8 +393,24 @@ export default function App() {
   //   python -> pythonToIR -> irToBlockly -> Blockly workspace load.
   // Async because the parse runs in Pyodide. The legacy BlockPyParser/Desugarer path is retired
   // from conversion; IR keeps SUGAR blocks (no desugar — desugar-as-feature is a later phase).
-  const syncCodeToBlocks = async (currentCode) => {
-    if (!currentCode.trim() || currentCode.startsWith('# Start dragging')) return;
+  // opts.fromUser = 사용자가 "변환" 버튼을 직접 누른 경우. 빈 코드 처리에서만 의미가 있다.
+  const syncCodeToBlocks = async (currentCode, opts = {}) => {
+    const blank = !currentCode.trim() || currentCode.startsWith('# Start dragging');
+    if (blank) {
+      // 자동 호출(시작 로드·스니펫 로드 등)에서는 빈 코드로 블록을 지우지 않는다(기존 동작 유지).
+      // 그러나 사용자가 코드를 다 지우고 "변환" 을 눌렀다면 결과는 **빈 워크스페이스**여야 한다.
+      // 예전에는 여기서 그냥 return 해서 이전 블록이 그대로 남아 "지웠는데 블록이 안 없어진다"는
+      // 문제가 됐다. 스냅샷 참조까지 비워야 이후 빠른 경로가 옛 블록을 복원하지 않는다.
+      if (opts.fromUser && workspaceRef.current) {
+        try { workspaceRef.current.clear(); } catch (_) { /* non-fatal */ }
+        blocklySnapshotRef.current = null;
+        associatedPythonRef.current = '';
+        refreshGrayBlocks();
+        setSyntaxStatus({ valid: true, error: '' });
+        setLogs((prev) => [...prev, '[Sync-Engine] 코드가 비어 있어 블록을 모두 비웠습니다.']);
+      }
+      return;
+    }
     if (!workspaceRef.current) return;
 
     isSyncingFromCodeRef.current += 1;
@@ -1425,7 +1441,7 @@ for i in range(4):
   };
 
   const handleSyncToBlocksClick = () => {
-    syncCodeToBlocks(code);
+    syncCodeToBlocks(code, { fromUser: true });   // 빈 코드면 블록도 비운다(사용자 의도)
   };
 
   const handleFormatCode = () => {
