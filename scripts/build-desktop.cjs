@@ -17,9 +17,13 @@ const staging = process.env.BLOCKPY_RELEASE_DIR || path.join(os.homedir(), 'bloc
 const releaseDir = path.join(repo, 'release');
 
 console.log('[build-desktop] staging output ->', staging);
+// npmRebuild=false: node-pty 1.1.0 은 node-addon-api(N-API) 로 만들어져 있고
+// prebuilds/win32-x64/*.node 를 함께 배포한다. N-API 바이너리는 Node ↔ Electron ABI 가 호환되므로
+// 다시 컴파일할 필요가 없다. 반대로 리빌드를 시도하면 winpty 소스 빌드 단계에서
+// 'GetCommitHash.bat' 이 없어 node-gyp 이 실패한다(실측: 설치파일 빌드가 여기서 멈췄다).
 execFileSync(
   'npx',
-  ['electron-builder', '--win', 'nsis', `--config.directories.output=${staging}`],
+  ['electron-builder', '--win', 'nsis', '--config.npmRebuild=false', `--config.directories.output=${staging}`],
   { stdio: 'inherit', cwd: repo, shell: true },
 );
 

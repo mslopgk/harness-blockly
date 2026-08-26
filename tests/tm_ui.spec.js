@@ -3,7 +3,9 @@ const { test, expect } = require('@playwright/test');
 // TM 전체 UI 흐름. 실제 MobileNet/카메라 없이:
 //  - featurize 는 가짜(window.__TM_TEST_FEATURIZER) → 고정 4차원 벡터
 //  - 카메라는 Chromium 가짜 미디어스트림
-//  - 저장 /api/fs/file 은 라우트 목으로 200 처리(백엔드 불필요)
+//  - 저장 /api/tm/train 은 라우트 목으로 200 처리(백엔드·파이썬 학습 불필요)
+//    저장은 브라우저 head 를 내보내는 게 아니라 원본 프레임을 백엔드로 보내 파이썬이 다시
+//    학습해 <이름>.npz 를 만드는 경로다(TF.js 임베딩 ≠ Keras 임베딩이라 재사용 불가).
 // 검증: TM 탭 → 클래스 2개 → 각 샘플 수집 → 학습 → 미리보기 라벨 → 파일명 저장 성공.
 test.use({
   launchOptions: {
@@ -17,10 +19,10 @@ test.describe('Teachable Machine UI', () => {
       // MobileNet 대체: 어떤 입력이든 고정 4차원 벡터 반환(흐름 검증용).
       window.__TM_TEST_FEATURIZER = () => [0.11, 0.22, 0.33, 0.44];
     });
-    // 저장 백엔드 목
-    await page.route('**/api/fs/file', (route) => {
+    // 저장 백엔드 목 — 파이썬 재학습은 수십 초 걸리므로 목으로 즉시 응답한다.
+    await page.route('**/api/tm/train', (route) => {
       if (route.request().method() === 'POST') {
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, path: 'my-model.json' }) });
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, path: 'my-model.npz' }) });
       }
       return route.continue();
     });
@@ -54,6 +56,6 @@ test.describe('Teachable Machine UI', () => {
     // 저장
     await page.locator('#tm-filename').fill('my-model');
     await page.locator('#tm-save').click();
-    await expect(page.locator('#tm-save-status')).toContainText('my-model.json', { timeout: 15000 });
+    await expect(page.locator('#tm-save-status')).toContainText('my-model.npz', { timeout: 15000 });
   });
 });

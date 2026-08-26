@@ -33,3 +33,8 @@ KakaoTalk_*
 # Python bytecode (runtime/ modules)
 __pycache__/
 *.pyc
+
+# 배포본에만 실리는 AI 키 (커밋 금지)
+electron/bundled-keys.cjs
+opencode-embed/
+vendor-installers/

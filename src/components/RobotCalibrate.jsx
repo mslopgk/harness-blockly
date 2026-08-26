@@ -41,6 +41,32 @@ function saveCalib(M, pairs) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, M, pairs }));
 }
 
+// 계약 4 — 보정값을 워크스페이스(robot_calib.json)로도 내보낸다. runtime/robotvision.py 가 이 파일을
+// 읽어 픽셀→로봇 좌표를 변환하므로, 파이썬이 observation/markZ 까지 알아야 한다.
+// localStorage 저장은 그대로 둔다(백엔드가 꺼져 있어도 화면은 동작해야 한다) — 여기 실패는 전부 무시.
+function pushCalibToBackend(M, pairs, measured) {
+  try {
+    fetch('/api/robot/calib', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        version: 1,
+        measured: !!measured,
+        M,
+        pairs: pairs || [],
+        observation: OBSERVATION,
+        markZ: MARK_Z,
+      }),
+    }).catch(() => {});
+  } catch (_) { /* fetch 미지원/차단 환경 — 화면 동작에 영향 없음 */ }
+}
+
+// App(계약 1 상태 송출)이 이 패널을 열지 않고도 보정 준비 여부를 알 수 있게 하는 읽기 전용 스냅샷.
+// 알 수 없으면 null(→ 상태에서 calib 키를 통째로 뺀다).
+export function calibReadySnapshot() {
+  try { return !!loadCalib().measured; } catch (_) { return null; }
+}
+
 // 기본 스텁: 팔 미연결. 실제로 로봇을 움직이지 않고 즉시 반환한다.
 // onMoveToPreset([x,y], meta) — meta.first=true면 이동 전 홈, meta.z=목표 z(mm).
 async function stubMove(preset, _meta) {
@@ -48,7 +74,7 @@ async function stubMove(preset, _meta) {
   return { moved: false };
 }
 
-export default function RobotCalibrate({ onMoveToPreset }) {
+export default function RobotCalibrate({ onMoveToPreset, onCalibChange }) {
   const robotWired = typeof onMoveToPreset === 'function';
   const move = robotWired ? onMoveToPreset : stubMove;
 
@@ -66,6 +92,15 @@ export default function RobotCalibrate({ onMoveToPreset }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const wrapRef = useRef(null);
+
+  // 보정 준비 여부를 상위(App)에 올린다 → 계약 1 상태 송출의 calib.ready.
+  // 콜백은 ref 로 잡아 effect 의존성에서 뺀다(부모가 매 렌더 새 함수를 넘겨도 재호출 루프가 없다).
+  const onCalibChangeRef = useRef(onCalibChange);
+  onCalibChangeRef.current = onCalibChange;
+  useEffect(() => {
+    const cb = onCalibChangeRef.current;
+    if (typeof cb === 'function') cb(!!calib.measured);
+  }, [calib.measured]);
 
   // ── 웹캠 스트림: '관측' 단계 동안만 켠다(패널 보기만으로 카메라 권한 요구 안 함) ──
   useEffect(() => {
@@ -134,7 +169,11 @@ export default function RobotCalibrate({ onMoveToPreset }) {
 
   const resetToDefault = useCallback(() => {
     try { window.localStorage.removeItem(STORAGE_KEY); } catch (_) { /* noop */ }
-    setCalib(loadCalib());
+    const back = loadCalib();
+    setCalib(back);
+    // 파이썬 쪽(robot_calib.json)도 화면과 같은 값으로 되돌린다 — 안 그러면 지운 사용자 보정이
+    // 워크스페이스 파일에 남아 화면과 로봇이 서로 다른 보정을 쓰게 된다.
+    pushCalibToBackend(back.M, back.pairs, back.measured);
     cancel();
   }, [cancel]);
 
@@ -177,6 +216,8 @@ export default function RobotCalibrate({ onMoveToPreset }) {
 
   const saveSolved = useCallback(() => {
     if (!solved) return;
+    // localStorage 와 **함께** 워크스페이스 파일로도 내보낸다(계약 4). 백엔드 실패는 무시된다.
+    pushCalibToBackend(solved.M, pairs, true);
     try {
       saveCalib(solved.M, pairs);
       setCalib({ M: solved.M, measured: true, pairs, source: 'saved' });

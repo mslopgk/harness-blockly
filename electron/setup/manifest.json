@@ -1,0 +1,74 @@
+{
+  "_주석": [
+    "온라인 설치본이 설치 직후(또는 첫 실행 때) 내려받아 갖추는 것들.",
+    "이 파일을 고치면 받는 것이 바뀐다. 버전을 올릴 때는 sha256/integrity 도 같이 갱신할 것.",
+    "왜 웹다운인가: 전부 담으면 설치파일이 1.2GB 가 된다. 이 목록이 그중 1.1GB 를 차지한다.",
+    "PyPI 패키지는 개별 URL 을 박지 않고 pip 에 버전을 못 박아 맡긴다 — 의존성까지 pip 가 푼다.",
+    "버전은 수업 자료·캡처를 검증한 것과 같아야 한다. 임의로 올리지 말 것."
+  ],
+  "version": 1,
+  "downloads": [
+    {
+      "id": "python",
+      "label": "파이썬 실행기",
+      "url": "https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip",
+      "sha256": "4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3",
+      "bytes": 11133606,
+      "target": "python",
+      "kind": "zip"
+    },
+    {
+      "id": "get-pip",
+      "label": "파이썬 패키지 설치기",
+      "url": "https://bootstrap.pypa.io/get-pip.py",
+      "bytes": 2230000,
+      "target": "python/get-pip.py",
+      "kind": "file",
+      "note": "bootstrap.pypa.io 는 내용이 계속 바뀌므로 해시를 박지 않는다(공식 부트스트랩)."
+    },
+    {
+      "id": "opencode",
+      "label": "AI 도우미",
+      "url": "https://registry.npmjs.org/opencode-windows-x64-baseline/-/opencode-windows-x64-baseline-1.18.20.tgz",
+      "integrity": "sha512-dTUWq8Z5prd7WjccG6lqSbyXn3PL5tsNlqpNzjW+uBnJDVXLaN3Zv10OMvFDVlr1cmHQoggRKwvmyYwA2eDrrQ==",
+      "bytes": 179400000,
+      "target": "opencode",
+      "kind": "npm-tgz",
+      "extract": "package/bin/opencode.exe",
+      "note": "baseline 변종 — AVX2 없는 구형 CPU 에서도 돈다(학교 PC 호환)."
+    },
+    {
+      "id": "mobilenet",
+      "label": "AI 학습 밑바탕(MobileNetV2)",
+      "url": "https://storage.googleapis.com/tensorflow/keras-applications/mobilenet_v2/mobilenet_v2_weights_tf_dim_ordering_tf_kernels_1.0_224_no_top.h5",
+      "bytes": 9406464,
+      "target": "runtime/mobilenet_v2_weights.h5",
+      "kind": "file",
+      "note": "runtime/tm.py 가 이 파일이 있으면 쓰고, 없으면 학습할 때 인터넷에서 받는다. 미리 받아 두면 교실이 오프라인이어도 학습이 된다. alpha=1.0 · 224 · no_top — tm.py 의 MobileNetV2 설정과 일치해야 한다.",
+      "sha256": "f8aff69536bd77a692c594f559c798c19bf7f3f36668fc9fa00b21c6aab4797c"
+    },
+    {
+      "id": "dobotlink",
+      "label": "DobotLink (로봇팔 연결 프로그램)",
+      "url": "http://cdn.release.dobot.cc/DobotLink/DobotLink-6.7.7-edu-x86-64-stable.e91ee050.4c4405ee.202603191740.exe",
+      "sha512": "Mp9WMMB2OhuPDxJgRAHk3EjQSMzaZ00xAgi+YU7TMPsECSzwymeTIQy2tyLE+3OU8yqzGvy8qR4zeiuNjj+gsA==",
+      "bytes": 419625168,
+      "target": "_temp/DobotLink-Setup.exe",
+      "kind": "installer",
+      "optional": true,
+      "skipIfExists": "%LOCALAPPDATA%/Programs/DobotLink/DobotLink.exe",
+      "note": "Dobot 사 제품. 공식 업데이트 피드(edu-x86-64-stable)에서 받는다. 로봇팔을 쓸 때만 필요하므로 optional — 실패해도 설치를 멈추지 않는다. 셋 중 가장 불안정한 출처다."
+    }
+  ],
+  "pip": {
+    "label": "파이썬 꾸러미",
+    "note": "버전 고정 — 수업 자료·캡처가 이 버전에서 검증됐다. tensorflow 가 가장 크다(휠 335MB).",
+    "packages": [
+      "numpy==2.4.4",
+      "opencv-python==4.13.0.92",
+      "dobotkit==0.2.0",
+      "websockets==17.0.1",
+      "tensorflow==2.21.0"
+    ]
+  }
+}

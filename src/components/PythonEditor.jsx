@@ -70,7 +70,7 @@ export default function PythonEditor({
       <div className="panel-header">
         <div className="panel-title-group">
           <i className="fa-brands fa-python icon-yellow"></i>
-          <h3>Python Source Editor</h3>
+          <h3>파이썬 코드</h3>
         </div>
         <div className="panel-actions">
           {examples.length > 0 && (
@@ -78,13 +78,13 @@ export default function PythonEditor({
               id="example-picker"
               className="example-picker"
               defaultValue=""
-              title="Load a demo example"
+              title="예제를 골라 코드 칸에 불러옵니다"
               onChange={(e) => {
                 const sn = examples.find((s) => s.id === e.target.value);
                 if (sn && onLoadExample) onLoadExample(sn);
               }}
             >
-              <option value="" disabled>Select example…</option>
+              <option value="" disabled>예제 불러오기…</option>
               {Object.entries(examplesByCategory).map(([category, items]) => (
                 <optgroup key={category} label={category}>
                   {items.map((s) => (
@@ -99,18 +99,18 @@ export default function PythonEditor({
             className={`syntax-status ${syntaxStatus.valid ? 'valid' : 'invalid'}`}
           >
             {syntaxStatus.valid ? (
-              <><i className="fa-solid fa-circle-check"></i> Code Valid</>
+              <><i className="fa-solid fa-circle-check"></i> 문법 정상</>
             ) : (
-              <><i className="fa-solid fa-circle-xmark"></i> Parser Error: {syntaxStatus.error.substring(0, 30)}...</>
+              <><i className="fa-solid fa-circle-xmark"></i> 문법 오류: {syntaxStatus.error.substring(0, 30)}…</>
             )}
           </div>
           <button
             className="btn btn-primary btn-sm btn-glow"
             id="btn-sync-to-blocks"
             onClick={onSyncToBlocks}
-            title="Convert to Visual Blocks (F4)"
+            title="이 코드를 블록으로 바꿉니다 (F4)"
           >
-            <i className="fa-solid fa-sync"></i> Convert
+            <i className="fa-solid fa-sync"></i> 블록으로 변환
           </button>
         </div>
       </div>
@@ -157,8 +157,8 @@ export default function PythonEditor({
       </div>
 
       <div className="editor-footer">
-        <div className="editor-pos">Ln {cursorPos.line}, Col {cursorPos.col}</div>
-        <div className="editor-mode">Python 3 (Sandbox Mode)</div>
+        <div className="editor-pos">{cursorPos.line}줄 {cursorPos.col}칸</div>
+        <div className="editor-mode">파이썬 3 · 실행하면 이 컴퓨터의 파이썬이 돌아갑니다</div>
       </div>
     </div>
   );

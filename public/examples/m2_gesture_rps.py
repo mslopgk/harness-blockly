@@ -49,3 +49,6 @@ print('로봇:', robot)
 arm.move_to(200, 0, 60)
 arm.move_to(200, 0, 20)
 arm.home()
+
+# 바람을 끄지 않으면 계속 돌아간다 — 코드 마지막은 언제나 펌프 정지
+arm.pump_off()

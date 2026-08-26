@@ -7,7 +7,7 @@ import VariableWatch from './components/VariableWatch';
 import ASTTreeView from './components/ASTTreeView';
 import LibraryManager from './components/LibraryManager';
 import RobotConnect from './components/RobotConnect';
-import RobotCalibrate from './components/RobotCalibrate';
+import RobotCalibrate, { calibReadySnapshot } from './components/RobotCalibrate';
 import TeachableMachine from './components/TeachableMachine';
 import ExampleGalleryContent from './components/ExampleGalleryContent';
 import AiTerminal from './components/AiTerminal.jsx';
@@ -15,6 +15,16 @@ import { interruptPyodide, prewarmEnvironment, writeImageToFS } from './utils/py
 import stdlibSpecs from './data/stdlibSpecs.json';
 import robotSpecs from './data/robotSpecs.json';
 import tmSpecs from './data/tmSpecs.json';
+
+// robotvision(카메라 픽셀→로봇 좌표) 블록 스펙. D 담당인 src/data/visionSpecs.json 이 아직 없을 수
+// 있어 정적 import 로 넣으면 빌드가 깨진다 — glob 으로 집으면 파일이 없을 땐 빈 목록,
+// 생기는 순간 자동으로 robotSpecs/tmSpecs 와 똑같이 built-in 등록된다.
+const visionSpecModules = import.meta.glob('./data/vision*.json', { eager: true });
+const visionSpecs = Object.values(visionSpecModules).flatMap((m) => {
+  const v = (m && m.default) || m;
+  if (Array.isArray(v)) return v;
+  return v ? [v] : [];
+});
 
 // A pip PACKAGE name is not always the IMPORT name (opencv-python→cv2, pillow→PIL, …). Map the
 // common mismatches; default = the package lowercased with '-' → '_' (pydobot→pydobot, scikit→…).
@@ -57,6 +67,12 @@ export default function App() {
   };
   // 로봇 연결 상태(RobotConnect가 올려줌) — 캘리브레이션 이동이 같은 포트를 쓰도록 App에 보관.
   const [robotConn, setRobotConn] = useState({ connected: false, device: 'lite', port: null });
+  // 보정 준비 여부(RobotCalibrate 가 올려줌; 최초값은 저장된 보정 스냅샷) — 계약 1 의 calib.ready.
+  // null = 아직 모름 → 상태 송출에서 calib 키를 아예 빼버린다(지어내지 않는다).
+  const [calibReady, setCalibReady] = useState(() => calibReadySnapshot());
+  // TM 패널 상태(이름표·샘플 수·학습 여부·저장 파일). TeachableMachine 이 onStateChange 로 올려 준다.
+  // AI 도우미가 .blockpy/state.json 으로 이걸 읽는다 — 없으면 "사진 몇 장 모았니?" 를 학생에게 되물어야 한다.
+  const [tmState, setTmState] = useState(null);
 
   // OpenCV image output (from real cv2.imshow) + uploaded image name
   const [cv2Images, setCv2Images] = useState([]);
@@ -547,6 +563,7 @@ export default function App() {
         ...(Array.isArray(stdlibSpecs) ? stdlibSpecs : []),
         ...(Array.isArray(robotSpecs) ? robotSpecs : []),
         ...(Array.isArray(tmSpecs) ? tmSpecs : []),
+        ...visionSpecs,
       ];
       if (imp) {
         for (const spec of bundledSpecs) {
@@ -915,7 +932,11 @@ for i in range(4):
     // Persist the open file first so the run reads the latest from the workspace (and what
     // the explorer shows matches what executes).
     if (activeFile) { await saveActiveFile({ silent: true }); }
-    setLogs([`[Shell] Running real Python (local python + real cv2)${activeFile ? ' on ' + activeFile : ''}. Files resolve against the workspace folder.`, `[Shell] Code:\n${code}`]);
+    // 실행 출력에 **소스 전문을 찍지 않는다.** 예전에는 `[Shell] Code:\n${code}` 로 프로그램
+    // 전체를 앞에 뿌렸는데, 중등(블록 전용) 수업에서는 학생이 실행을 누를 때마다 파이썬을 보게 됐다
+    // — 강의자료가 "파이썬은 쓰지 않는다"고 말하는 것과 화면이 어긋났다(2026-08-11 검수).
+    // 코드가 필요하면 파이썬 코드 탭에 그대로 있으므로 여기서는 줄 수만 알린다.
+    setLogs([`[Shell] Running real Python (local python + real cv2)${activeFile ? ' on ' + activeFile : ''}. Files resolve against the workspace folder.`, `[Shell] 프로그램 ${code.split('\n').length}줄 실행`]);
     setOutOpen(true);      // 실행하면 하단 출력 패널을 자동으로 펼친다
     setIsRunning(true);
     const controller = new AbortController();
@@ -1034,13 +1055,40 @@ for i in range(4):
     return () => { stopped = true; clearInterval(id); };
   }, [activeFile]);
 
+  // ── 계약 3(안전 정지) — 펌프(바람) 끄기 ──────────────────────────────────────
+  // 프로그램을 중단해도 흡착 펌프는 계속 돌아간다(전원이 따로다). 정지 버튼은 학생이 바람을 끌 수
+  // 있는 유일한 수단이므로 결과를 실행 출력에 **한 줄**로 반드시 남긴다. 백엔드/로봇이 없어도
+  // 절대 예외를 던지지 않는다.
+  const safeStopRobot = async () => {
+    let line;
+    try {
+      const r = await fetch('/api/robot/safe-stop', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+      });
+      if (!r.ok) {
+        line = `[로봇] 바람을 끄지 못했습니다 — 안전 정지 기능을 아직 쓸 수 없습니다 (서버 ${r.status}).`;
+      } else {
+        const j = await r.json().catch(() => null);
+        if (j && j.ok) line = '[로봇] 바람을 껐습니다.';
+        else line = `[로봇] 바람을 끄지 못했습니다 — ${(j && (j.reason || j.error)) || '로봇이 연결되어 있지 않습니다.'}`;
+      }
+    } catch (_) {
+      line = '[로봇] 바람을 끄지 못했습니다 — 서버에 연결할 수 없습니다 (npm run server 확인).';
+    }
+    setLogs((prev) => [...prev, line]);
+  };
+
   // ── Stop: interrupt any running program (shell run; also a no-op Pyodide interrupt) ──────────
+  // 중단한 **뒤에** 항상 안전 정지를 부른다(계약 3). 버튼은 실행 중이 아니어도 눌리게 두었다 —
+  // 아래 상단바 주석 참고(안전 우선).
   const handleStopExecution = () => {
+    const wasRunning = isRunning || !!shellAbortRef.current;
     interruptPyodide();
     if (shellAbortRef.current) { try { shellAbortRef.current.abort(); } catch (_) {} }
     setHighlightedLine(null);
     setIsRunning(false);
-    setLogs(prev => [...prev, '[Python] Stopped.']);
+    if (wasRunning) setLogs(prev => [...prev, '[Python] Stopped.']);
+    safeStopRobot();
   };
 
   // ── Library / toolbox removal ─────────────────────────────────────────────────
@@ -1525,6 +1573,60 @@ for i in range(4):
       else document.exitFullscreen?.();
     } catch (_) { /* 미지원 환경 무시 */ }
   };
+  // ── 계약 1 — 앱 실시간 상태 송출 (POST /api/ui-state) ─────────────────────────
+  // 백엔드가 이 본문을 <워크스페이스>/.blockpy/state.json 으로 떨궈, AI 도우미가 "학생 화면에 지금
+  // 무엇이 있는지"를 읽는다. 여기서는 상태를 **읽기만** 한다 — 블록↔파이썬 변환과 무관하고,
+  // 어떤 setState 도 하지 않으므로 렌더 루프가 생기지 않는다.
+  // 최대 500ms 에 한 번(트레일링). 실행 중 로그가 폭포처럼 들어와도 타이머를 리셋하지 않으므로
+  // 굶지 않는다. 백엔드가 없거나 이 API 가 아직 없으면 조용히 무시한다.
+  const uiStateRef = useRef(null);
+  const uiStateTimerRef = useRef(null);
+  useEffect(() => {
+    const payload = { at: new Date().toISOString(), running: !!isRunning };
+
+    // 활성 탭 — 계약이 정한 두 값만 보낸다(고급 전용 탭은 이름이 없으니 키를 뺀다).
+    if (activeEditorTab === 'blockly') payload.tab = '블록 작업실';
+    else if (activeEditorTab === 'python') payload.tab = '파이썬 코드';
+
+    if (activeFile) payload.file = activeFile;
+
+    // 실행 출력 마지막 20"줄" — logs 한 항목이 여러 줄을 담을 수 있어 펼친 뒤 자른다.
+    const tail = logs.slice(-40).join('\n').split('\n').filter((l) => l !== '').slice(-20);
+    if (tail.length) payload.output_tail = tail;
+
+    // 블록 개수 — 워크스페이스가 아직 없으면(초기 로드) 키를 뺀다.
+    try {
+      const n = window.__blocklyWorkspace?.getAllBlocks(false)?.length;
+      if (typeof n === 'number') payload.blocks = n;
+    } catch (_) { /* 워크스페이스 미준비 */ }
+
+    payload.robot = { connected: !!robotConn.connected };
+    if (robotConn.connected) {
+      const label = robotConn.device === 'go' ? 'Magician GO' : robotConn.device === 'lite' ? 'Magician Lite' : robotConn.device;
+      if (label) payload.robot.device = label;
+    }
+
+    if (calibReady !== null && calibReady !== undefined) payload.calib = { ready: !!calibReady };
+
+    if (tmState && Array.isArray(tmState.labels)) payload.tm = tmState;
+
+    // exit_code 는 /api/run-python 이 종료 코드를 따로 주지 않아 넣지 않는다(계약: 지어내지 말 것).
+    // 다만 실행 출력 마지막에 `[exit 0]` 이 글자로 찍히므로 output_tail 로 확인할 수 있다.
+    uiStateRef.current = payload;
+    if (uiStateTimerRef.current) return;
+    uiStateTimerRef.current = setTimeout(() => {
+      uiStateTimerRef.current = null;
+      const body = uiStateRef.current;
+      if (!body) return;
+      try {
+        fetch('/api/ui-state', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        }).catch(() => {});
+      } catch (_) { /* fetch 미지원/차단 — 앱은 그대로 돈다 */ }
+    }, 500);
+  }, [activeEditorTab, activeFile, isRunning, logs, code, robotConn, calibReady, tmState]);
+  useEffect(() => () => { if (uiStateTimerRef.current) clearTimeout(uiStateTimerRef.current); }, []);
+
   // rail 세로 아이콘 탭 — 기존 activeAuxTab 값에 그대로 매핑(실행출력→logs, 변환로그→gray).
   // `adv: true` = 고급(교사) 모드 전용. 학생 화면에서는 변수/변환로그를 감춘다.
   const RAIL_TABS = [
@@ -1591,7 +1693,10 @@ for i in range(4):
 
         <span className="bpy-topbar-div" />
 
-        <button className="bpy-btn stop" onClick={handleStopExecution} disabled={!isRunning} aria-label="정지" title="실행 중지">
+        {/* 정지는 **항상** 누를 수 있다: 프로그램이 끝나도 흡착 펌프는 계속 돌기 때문에
+            (계약 3) 실행이 끝난 뒤에도 바람을 끌 수 있어야 한다. 실행 중이 아닐 때 눌러도
+            'Stopped.' 로 헷갈리게 하지 않고 안전 정지 결과 한 줄만 남는다. */}
+        <button className="bpy-btn stop" onClick={handleStopExecution} aria-label="정지" title="실행 중지 · 바람(펌프) 끄기">
           <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>정지
         </button>
         <button className="bpy-btn run" onClick={handleRunShell} disabled={isRunning} aria-label="실행" title="실제 파이썬으로 실행">
@@ -1672,12 +1777,12 @@ for i in range(4):
               {activeAuxTab === 'robot' && (
                 <div className="robot-tab-scroll" style={{ overflowY: 'auto', height: '100%' }}>
                   <RobotConnect onConnectedChange={setRobotConn} />
-                  <RobotCalibrate onMoveToPreset={armWired ? robotMoveToPreset : undefined} />
+                  <RobotCalibrate onMoveToPreset={armWired ? robotMoveToPreset : undefined} onCalibChange={setCalibReady} />
                 </div>
               )}
               {activeAuxTab === 'tm' && (
                 <div className="tm-tab-scroll" style={{ overflowY: 'auto', height: '100%' }}>
-                  <TeachableMachine />
+                  <TeachableMachine onStateChange={setTmState} />
                 </div>
               )}
               {activeAuxTab === 'examples' && (

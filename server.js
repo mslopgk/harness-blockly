@@ -84,6 +84,89 @@ function killTree(child) {
   }
 }
 
+// ─── 공용: 짧은 파이썬 조각 실행 / JSON 응답 파싱 / 원자적 JSON 쓰기 ──────────────
+// 왜 필요한가: 카메라 점검·안전 정지·tensorflow 확인처럼 "한 번 돌리고 JSON 한 줄 받는" 일이
+// 여러 곳에서 필요하다. 실행 방식은 /api/run-python 과 **동일**해야 한다(PYTHON_CMD +
+// RUNTIME_DIR 을 PYTHONPATH 에 실어 플랫폼 런타임 import 가능, UTF-8 고정). 그래야 학생
+// 코드가 도는 환경과 서버가 점검하는 환경이 어긋나지 않는다.
+// 반드시 타임아웃 + killTree 로 끝난다 — 좀비 파이썬이 남으면 카메라/로봇을 물고 놓지 않는다.
+// done 은 정확히 한 번만 호출된다(error/close/timeout 경합 방지).
+function runPythonSnippet(code, opts, done) {
+  const timeoutMs = (opts && opts.timeoutMs) || 15000;
+  const file = path.join(os.tmpdir(), `blockpy_snip_${Date.now()}_${Math.random().toString(36).slice(2)}.py`);
+  let settled = false;
+  let timer = null;
+  const cleanup = () => { try { fs.unlinkSync(file); } catch (_) {} };
+  const settle = (result) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    cleanup();
+    try { done(result); } catch (e) { console.log('[python-snippet] handler error:', e && e.message); }
+  };
+  try { fs.writeFileSync(file, code, 'utf8'); }
+  catch (e) { settle({ ok: false, timedOut: false, error: `임시 파일 쓰기 실패: ${e.message}`, stdout: '', stderr: '' }); return null; }
+
+  let child;
+  try {
+    child = spawn(PYTHON_CMD, ['-u', file], {
+      cwd: WORKSPACE_DIR,
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUTF8: '1',
+        PYTHONUNBUFFERED: '1',
+        PYTHONPATH: [RUNTIME_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
+      },
+    });
+  } catch (e) {
+    settle({ ok: false, timedOut: false, error: `python 실행 실패: ${e.message}`, stdout: '', stderr: '' });
+    return null;
+  }
+
+  let out = '';
+  let err = '';
+  child.stdout.on('data', (d) => { out += d; if (out.length > 200000) out = out.slice(-200000); });
+  child.stderr.on('data', (d) => { err += d; if (err.length > 200000) err = err.slice(-200000); });
+  child.on('error', (e) => settle({ ok: false, timedOut: false, error: `python 실행 오류: ${e.message}`, stdout: out, stderr: err }));
+  child.on('close', (codeNum) => { cleanup(); settle({ ok: true, timedOut: false, code: codeNum, stdout: out, stderr: err }); });
+  timer = setTimeout(() => {
+    killTree(child);
+    settle({ ok: false, timedOut: true, error: `시간초과(${timeoutMs}ms)`, stdout: out, stderr: err });
+  }, timeoutMs);
+  if (timer.unref) timer.unref(); // 서버/테스트 종료를 막지 않게
+  return child;
+}
+
+// 스크립트가 찍은 마지막 JSON 한 줄을 고른다(파이썬 경고·TF 잡음이 섞여도 안전하게).
+function lastJsonLine(text) {
+  const lines = String(text || '').split('\n').map((s) => s.trim()).filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].startsWith('{')) continue;
+    try {
+      const v = JSON.parse(lines[i]);
+      if (v && typeof v === 'object') return v;
+    } catch (_) { /* 다음 줄 시도 */ }
+  }
+  return null;
+}
+
+// 원자적 JSON 쓰기(임시파일 → rename). 왜: 앱이 1초마다 상태를 덮어쓰는데, 그 순간 학생이
+// 파일을 열어 보거나 전원이 나가면 반쯤 쓰인 JSON 이 남는다. rename 은 같은 볼륨에서 원자적이다.
+// 사람이 읽을 수 있게 들여쓰기 2 + UTF-8.
+function writeJsonAtomic(absPath, value) {
+  const dir = path.dirname(absPath);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = path.join(dir, `.${path.basename(absPath)}.${process.pid}.${Date.now()}.tmp`);
+  fs.writeFileSync(tmp, JSON.stringify(value, null, 2), 'utf8');
+  try {
+    fs.renameSync(tmp, absPath); // win32 의 fs.rename 도 기존 파일을 덮어쓴다(MOVEFILE_REPLACE_EXISTING)
+  } catch (e) {
+    try { fs.rmSync(tmp, { force: true }); } catch (_) {}
+    throw e;
+  }
+}
+
 // ─── blockpy-gen introspection (ESM, lazy-imported into this CJS server) ───────
 // /api/blockify turns an importable module into a LibrarySpec by importing it in a python
 // subprocess (executes its top-level code) — the SAME trust level the app already grants
@@ -182,11 +265,28 @@ function seedAgentContext() {
       fs.writeFileSync(claudeDst,
         '# CLAUDE.md\n이 폴더의 AI 도우미 안내는 AGENTS.md 를 따른다.\n@AGENTS.md\n', 'utf8');
     }
+    // 2-b) opencode.jsonc — AI 도우미가 쓸 모델을 못 박는다. 사내 정책상 DeepSeek V4 Flash/Pro
+    //      두 종만 허용되므로 기본값을 flash 로 둔다. 사용자가 이미 만든 파일은 덮지 않는다.
+    const ocSrc = path.join(__dirname, 'agent-context', 'opencode.jsonc');
+    const ocDst = path.join(WORKSPACE_DIR, 'opencode.jsonc');
+    if (fs.existsSync(ocSrc) && !fs.existsSync(ocDst)) {
+      fs.copyFileSync(ocSrc, ocDst);
+    }
     // 3) 커리큘럼 예제 복사 (dev: public/examples, 패키징: dist/examples = STATIC_DIR/examples)
     const exSrc = (STATIC_DIR && fs.existsSync(path.join(STATIC_DIR, 'examples')))
       ? path.join(STATIC_DIR, 'examples')
       : path.join(__dirname, 'public', 'examples');
-    const NAMES = ['m1_ai_sorting.py', 'm2_gesture_rps.py', 'h1_nl_control.py', 'h2_teleop.py', 'h3_vision_drive.py'];
+    // 여기 없는 예제는 워크스페이스로 복사되지 않아 **AI 도우미가 볼 수 없다**(전에 *_blocks.py 가
+    // 빠져 같은 문제가 있었다). 예제를 새로 만들면 반드시 이 목록에 추가할 것.
+    const NAMES = ['m1_ai_sorting_blocks.py', 'm2_gesture_rps_blocks.py',
+      'm1_ai_sorting.py', 'm2_gesture_rps.py',
+      'h1_nl_control.py', 'h2_teleop.py', 'h3_vision_drive.py',
+      // 단계별(누적) 수업 예제 — 중등 m1/m2, 고등 h1~h3 각 3단계.
+      'm1_1_찾기.py', 'm1_2_잡기.py', 'm1_3_놓기.py',
+      'm2_1_손보기.py', 'm2_2_응수하기.py', 'm2_3_대전하기.py',
+      'h1_1_알아듣기.py', 'h1_2_움직이기.py', 'h1_3_대화하기.py',
+      'h2_1_배우기.py', 'h2_2_움직이기.py', 'h2_3_조종하기.py',
+      'h3_1_배우기.py', 'h3_2_고르기.py', 'h3_3_달리기.py'];
     if (fs.existsSync(exSrc)) {
       const exDst = path.join(WORKSPACE_DIR, 'examples');
       fs.mkdirSync(exDst, { recursive: true });
@@ -794,6 +894,178 @@ app.post('/api/robot/move-preset', (req, res) => {
   runRobotBridge({ action: 'move_preset', device: 'lite', port: b.port || 'auto', x: b.x, y: b.y, z: (typeof b.z === 'number' ? b.z : undefined), home: !!b.home }, res, 120000);
 });
 
+// ─── 안전 정지 (계약 3) ────────────────────────────────────────────────────────
+// 왜 필요한가: 학생이 [정지] 를 눌러 파이썬을 죽여도 **에어펌프(진공)는 계속 돌아간다**.
+// 프로그램이 죽는 것과 하드웨어가 멈추는 것은 다른 일이다 — 펌프가 켜진 채 남으면 소음이
+// 계속되고 물건이 붙어 있어 다음 수업이 시작되지 못한다. 그래서 정지 버튼은 실행 중단 뒤
+// 이 API 를 **항상** 호출한다. 로봇이 없거나 DobotLink 가 꺼져 있는 교실이 태반이므로
+// 실패는 오류(500)가 아니라 200 + {ok:false, reason} 이다 — 절대 서버를 죽이지 않는다.
+const ROBOT_SAFE_STOP_PY = [
+  '# -*- coding: utf-8 -*-',
+  '# Generated by BlockPy /api/robot/safe-stop. 펌프(+그리퍼)를 끄고 끝낸다.',
+  'import json, sys',
+  '',
+  'def emit(obj):',
+  '    sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\\n")',
+  '    sys.stdout.flush()',
+  '',
+  'try:',
+  '    import dobotkit',
+  'except Exception as e:',
+  '    emit({"ok": False, "reason": "dobotkit 가 설치되어 있지 않습니다 (%s)" % e,',
+  '          "hint": "pip install dobotkit"})',
+  '    sys.exit(0)',
+  '',
+  'try:',
+  '    arm = dobotkit.MagicianLite()',
+  'except Exception as e:',
+  '    emit({"ok": False, "reason": "로봇에 연결하지 못했습니다 (%s)" % e,',
+  '          "hint": "DobotLink.exe 실행과 로봇 전원을 확인하세요."})',
+  '    sys.exit(0)',
+  '',
+  'done = []',
+  'try:',
+  '    arm.pump_off()',
+  '    done.append("pump_off")',
+  'except Exception as e:',
+  '    emit({"ok": False, "reason": "펌프를 끄지 못했습니다 (%s)" % e,',
+  '          "hint": "컨트롤러 알람이면 로봇 전원을 껐다 켜야 합니다."})',
+  '    sys.exit(0)',
+  '',
+  '# 그리퍼는 장착돼 있지 않을 수 있다 — 실패해도 펌프는 이미 껐으므로 성공으로 본다.',
+  'try:',
+  '    arm.grip(False)',
+  '    done.append("grip_off")',
+  'except Exception:',
+  '    pass',
+  '',
+  'emit({"ok": True, "done": done, "message": "로봇의 바람(펌프)을 껐습니다."})',
+  ''
+].join('\n');
+
+const ROBOT_SAFE_STOP_TIMEOUT_MS = 20000; // 계약 3: 20초
+
+app.post('/api/robot/safe-stop', (req, res) => {
+  runPythonSnippet(ROBOT_SAFE_STOP_PY, { timeoutMs: ROBOT_SAFE_STOP_TIMEOUT_MS }, (r) => {
+    if (r.timedOut) {
+      return res.json({ ok: false, reason: `안전 정지 시간초과(${ROBOT_SAFE_STOP_TIMEOUT_MS / 1000}초)`,
+        hint: 'DobotLink 가 응답하지 않습니다. DobotLink.exe/로봇 상태를 확인하세요.' });
+    }
+    if (!r.ok) return res.json({ ok: false, reason: r.error, hint: 'PYTHON_CMD 확인' });
+    const parsed = lastJsonLine(r.stdout);
+    if (!parsed) {
+      return res.json({ ok: false, reason: '안전 정지 응답을 읽지 못했습니다.',
+        hint: (r.stderr || r.stdout || '').slice(-400) });
+    }
+    res.json(parsed);
+  });
+});
+
+// ─── 캘리브레이션 내보내기 (계약 4) ─────────────────────────────────────────────
+// 왜 필요한가: 카메라 픽셀 → 로봇 좌표 변환값(M)이 브라우저 localStorage 에만 있으면
+// **파이썬 쪽에서 쓸 수 없다**. runtime/robotvision.py 는 워크스페이스의 robot_calib.json 을
+// 읽어 동작하므로, 보정할 때 이 API 로도 함께 내려 파일로 남긴다.
+// 파일은 학생이 열어 볼 수 있게 들여쓰기 2 로 원자적으로 쓴다.
+const ROBOT_CALIB_FILE = path.join(WORKSPACE_DIR, 'robot_calib.json');
+
+app.post('/api/robot/calib', (req, res) => {
+  const body = req.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return res.status(400).json({ ok: false, error: '보정 데이터(JSON 객체)가 필요합니다.' });
+  }
+  try {
+    writeJsonAtomic(ROBOT_CALIB_FILE, body);
+    res.json({ ok: true, path: 'robot_calib.json', absPath: ROBOT_CALIB_FILE });
+  } catch (e) {
+    // 저장 실패가 앱을 멈추게 하면 안 된다 — 이유만 알려 주고 계속 쓰게 둔다.
+    res.json({ ok: false, error: '보정 파일을 저장하지 못했습니다: ' + e.message });
+  }
+});
+
+app.get('/api/robot/calib', (req, res) => {
+  try {
+    if (!fs.existsSync(ROBOT_CALIB_FILE)) return res.json({ measured: false });
+    const parsed = JSON.parse(fs.readFileSync(ROBOT_CALIB_FILE, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return res.json({ measured: false });
+    res.json(parsed);
+  } catch (e) {
+    // 파일이 깨져 있어도 200 — 프런트는 "아직 보정 안 됨" 으로 취급하면 된다.
+    res.json({ measured: false, error: '보정 파일을 읽지 못했습니다: ' + e.message });
+  }
+});
+
+// ─── 카메라 목록 (계약 2) ──────────────────────────────────────────────────────
+// 왜 필요한가: 교실 PC 마다 웹캠 인덱스가 다르다(내장 0, 외장 1, 가상캠 2…). 학생에게
+// "숫자를 바꿔 가며 찍어 보라" 고 시킬 수 없으므로 서버가 **실제로 열리는 인덱스만** 알려 준다.
+// 반드시 release() 로 닫는다 — 열어 둔 채 두면 그 뒤 학생 프로그램이 카메라를 못 연다.
+// 실패해도 500 이 아니라 200 + available:[] (계약).
+const CAMERA_PROBE_PY = [
+  '# -*- coding: utf-8 -*-',
+  '# Generated by BlockPy /api/cameras. 0~3 을 열어 보고 열리는 것만 보고한 뒤 반드시 닫는다.',
+  'import json, os, sys',
+  'os.environ.setdefault("OPENCV_LOG_LEVEL", "SILENT")   # 없는 인덱스마다 나오는 경고 잡음 제거',
+  'os.environ.setdefault("OPENCV_VIDEOIO_PRIORITY_MSMF", "0")',
+  '',
+  'def emit(obj):',
+  '    sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\\n")',
+  '    sys.stdout.flush()',
+  '',
+  'try:',
+  '    import cv2',
+  'except Exception as e:',
+  '    emit({"available": [], "checked": [], "error": "opencv-python(cv2) 를 불러오지 못했습니다: %s" % e})',
+  '    sys.exit(0)',
+  '',
+  'INDEXES = [0, 1, 2, 3]',
+  'available, checked = [], []',
+  'for i in INDEXES:',
+  '    checked.append(i)',
+  '    cap = None',
+  '    try:',
+  '        # win32 는 DSHOW 가 훨씬 빠르고 조용하다(MSMF 는 없는 장치에서 수 초씩 멈춘다).',
+  '        if sys.platform == "win32":',
+  '            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)',
+  '        else:',
+  '            cap = cv2.VideoCapture(i)',
+  '        if cap is not None and cap.isOpened():',
+  '            available.append(i)',
+  '    except Exception:',
+  '        pass',
+  '    finally:',
+  '        # 여기서 못 닫으면 학생 프로그램이 카메라를 못 연다. 무슨 일이 있어도 닫는다.',
+  '        try:',
+  '            if cap is not None:',
+  '                cap.release()',
+  '        except Exception:',
+  '            pass',
+  'try:',
+  '    cv2.destroyAllWindows()',
+  'except Exception:',
+  '    pass',
+  'emit({"available": available, "checked": checked})',
+  ''
+].join('\n');
+
+const CAMERA_PROBE_TIMEOUT_MS = 15000; // 계약 2: 15초
+const CAMERA_NOTE = 'TM 패널이 웹캠을 쓰고 있으면 목록이 비거나 줄 수 있다';
+
+app.get('/api/cameras', (req, res) => {
+  runPythonSnippet(CAMERA_PROBE_PY, { timeoutMs: CAMERA_PROBE_TIMEOUT_MS }, (r) => {
+    if (r.timedOut) {
+      return res.json({ available: [], checked: [0, 1, 2, 3], note: CAMERA_NOTE,
+        error: `카메라 확인 시간초과(${CAMERA_PROBE_TIMEOUT_MS / 1000}초)` });
+    }
+    if (!r.ok) return res.json({ available: [], checked: [], note: CAMERA_NOTE, error: r.error });
+    const parsed = lastJsonLine(r.stdout);
+    if (!parsed || !Array.isArray(parsed.available)) {
+      return res.json({ available: [], checked: [], note: CAMERA_NOTE,
+        error: '카메라 확인 응답을 읽지 못했습니다: ' + (r.stderr || r.stdout || '').slice(-300) });
+    }
+    res.json({ available: parsed.available, checked: parsed.checked || [0, 1, 2, 3], note: CAMERA_NOTE,
+      ...(parsed.error ? { error: parsed.error } : {}) });
+  });
+});
+
 // Save an uploaded image to the media dir so shell-run Python can cv2.imread() it.
 app.post('/api/upload-image', (req, res) => {
   const { filename, dataBase64 } = req.body || {};
@@ -866,7 +1138,158 @@ const TM_TRAIN_PY = [
   ''
 ].join('\n');
 
-app.post('/api/tm/train', (req, res) => {
+// ─── tensorflow 자동 설치 (계약 5) ──────────────────────────────────────────────
+// 왜 필요한가: TM 학습은 tensorflow 가 있어야 돌아가는데, 교실 PC 에 그것이 깔려 있는지
+// 학생이 알 수도, 직접 설치할 수도 없다("pip install 하세요" 는 수업을 멈추게 한다).
+// 그래서 학습이 시작될 때 서버가 대신 확인하고 없으면 깔아 준다.
+// 설치는 수백 MB — 몇 분 걸린다. /api/tm/train 은 (스트리밍이 아니라) JSON 하나를 돌려주는
+// 엔드포인트라 응답 중간에 알릴 채널이 없으므로, 시작하자마자
+//   1) 서버 콘솔에 안내 문구를 찍고
+//   2) GET /api/tm/prepare-status 로 진행 상황(설치 로그)을 폴링할 수 있게 열어 둔다.
+// 마지막 학습 응답에도 notice 로 같은 문구를 실어 보낸다.
+const TF_NOTICE = 'AI 학습 준비물을 내려받는 중입니다. 몇 분 걸립니다';
+const TF_CHECK_TIMEOUT_MS = 60000;
+const TF_INSTALL_TIMEOUT_MS = 30 * 60 * 1000; // 느린 회선에서도 끝나게 넉넉히
+// 확인은 `import tensorflow` 대신 find_spec 으로 한다 — 실제 import 는 (설치돼 있어도)
+// 20~60초씩 걸려 매번 학습 시작을 그만큼 늦춘다. 설치 여부 판정에는 find_spec 이면 충분하다.
+const TF_CHECK_PY = [
+  '# -*- coding: utf-8 -*-',
+  '# Generated by BlockPy /api/tm/train. tensorflow 설치 여부만 빠르게 확인한다.',
+  'import json, sys, importlib.util',
+  'found = False',
+  'try:',
+  '    found = importlib.util.find_spec("tensorflow") is not None',
+  'except Exception:',
+  '    found = False',
+  'sys.stdout.write(json.dumps({"tensorflow": bool(found)}) + "\\n")',
+  ''
+].join('\n');
+
+let tmPrepare = { status: 'idle', message: '', log: [], startedAt: null, endedAt: null };
+let tfEnsurePromise = null;
+
+function tmPrepLog(line) {
+  const s = String(line == null ? '' : line).replace(/\r/g, '').trimEnd();
+  if (!s) return;
+  tmPrepare.log.push(s);
+  if (tmPrepare.log.length > 400) tmPrepare.log.splice(0, tmPrepare.log.length - 400);
+  console.log('[tm-prep]', s);
+}
+
+// python -m pip install <pkg> 를 돌리며 줄 단위로 진행 상황을 tmPrepare.log 에 남긴다.
+// 반드시 타임아웃 + killTree (좀비 pip 금지). done 은 한 번만 호출된다.
+function pipInstallStreaming(pkg, timeoutMs, done) {
+  let child;
+  try {
+    child = spawn(PYTHON_CMD, ['-u', '-m', 'pip', 'install', '--progress-bar', 'off', pkg], {
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1', PYTHONUNBUFFERED: '1' },
+    });
+  } catch (e) {
+    done({ ok: false, error: `pip 실행 실패: ${e.message}` });
+    return;
+  }
+  let settled = false;
+  let tail = '';
+  let timer = null;
+  const settle = (r) => { if (settled) return; settled = true; clearTimeout(timer); done(r); };
+  timer = setTimeout(() => {
+    killTree(child);
+    settle({ ok: false, error: `설치 시간초과(${Math.round(timeoutMs / 60000)}분) — 인터넷 연결을 확인하세요.`, tail });
+  }, timeoutMs);
+  if (timer.unref) timer.unref();
+  const onData = (d) => {
+    const s = d.toString();
+    tail = (tail + s).slice(-4000);
+    s.split('\n').forEach(tmPrepLog);
+  };
+  child.stdout.on('data', onData);
+  child.stderr.on('data', onData);
+  child.on('error', (e) => settle({ ok: false, error: `pip 실행 오류: ${e.message}`, tail }));
+  child.on('close', (codeNum) => settle(codeNum === 0
+    ? { ok: true }
+    : { ok: false, error: `설치에 실패했습니다(pip 종료 코드 ${codeNum}).`, tail }));
+}
+
+// tensorflow 를 보장한다. 이미 있으면 즉시 통과, 없으면 설치. 동시에 여러 요청이 와도
+// 설치는 한 번만 돈다(같은 Promise 를 공유). 실패하면 캐시를 비워 다음 시도가 가능하게 한다.
+function ensureTensorflow() {
+  if (tfEnsurePromise) return tfEnsurePromise;
+  tfEnsurePromise = new Promise((resolve) => {
+    tmPrepare = { status: 'checking', message: 'AI 학습 준비물을 확인하는 중입니다…', log: [], startedAt: Date.now(), endedAt: null };
+    runPythonSnippet(TF_CHECK_PY, { timeoutMs: TF_CHECK_TIMEOUT_MS }, (r) => {
+      const parsed = r.ok ? lastJsonLine(r.stdout) : null;
+      if (parsed && parsed.tensorflow === true) {
+        tmPrepare = { ...tmPrepare, status: 'ready', message: 'AI 학습 준비물이 이미 설치되어 있습니다.', endedAt: Date.now() };
+        return resolve({ ok: true, installed: false });
+      }
+      if (!parsed) {
+        // 확인 자체가 안 됐다(파이썬이 없거나 시간초과). 설치를 시도할 상황이 아니다.
+        tmPrepare = { ...tmPrepare, status: 'failed', message: '파이썬을 확인하지 못했습니다.', endedAt: Date.now() };
+        tfEnsurePromise = null;
+        return resolve({ ok: false,
+          error: 'AI 학습 준비물을 확인하지 못했습니다: ' + (r.error || (r.stderr || '').slice(-200) || '알 수 없는 오류'),
+          hint: 'PYTHON_CMD 로 지정한 파이썬이 실행되는지 확인하세요.' });
+      }
+      // ── 없다 → 설치. 사용자에게 **먼저** 알린다(계약 5). ──
+      tmPrepare = { status: 'installing', message: TF_NOTICE, log: [], startedAt: Date.now(), endedAt: null };
+      tmPrepLog(TF_NOTICE);
+      pipInstallStreaming('tensorflow', TF_INSTALL_TIMEOUT_MS, (ins) => {
+        if (ins.ok) {
+          tmPrepare = { ...tmPrepare, status: 'ready', message: 'AI 학습 준비물 내려받기가 끝났습니다.', endedAt: Date.now() };
+          tmPrepLog('AI 학습 준비물 내려받기가 끝났습니다.');
+          return resolve({ ok: true, installed: true, notice: TF_NOTICE });
+        }
+        tmPrepare = { ...tmPrepare, status: 'failed', message: ins.error, endedAt: Date.now() };
+        tmPrepLog(ins.error);
+        tfEnsurePromise = null; // 다시 시도할 수 있게
+        resolve({ ok: false,
+          error: 'AI 학습 준비물(tensorflow)을 설치하지 못했습니다: ' + ins.error,
+          hint: '인터넷 연결을 확인하거나, 터미널에서 `python -m pip install tensorflow` 를 직접 실행해 보세요. ' + String(ins.tail || '').slice(-300) });
+      });
+    });
+  });
+  return tfEnsurePromise;
+}
+
+// TM 학습 준비(= tensorflow 내려받기) 진행 상황. 학습 응답이 JSON 하나뿐이라 그동안 화면이
+// 멈춘 것처럼 보인다 — 패널이 이 엔드포인트를 폴링해 "몇 분 걸립니다" 를 보여 줄 수 있다.
+app.get('/api/tm/prepare-status', (req, res) => {
+  res.json({
+    status: tmPrepare.status,          // idle | checking | installing | ready | failed
+    installing: tmPrepare.status === 'installing',
+    message: tmPrepare.message || '',
+    log: tmPrepare.log.slice(-60),
+    startedAt: tmPrepare.startedAt,
+    endedAt: tmPrepare.endedAt,
+  });
+});
+
+// /api/tm/train 앞에 끼우는 관문(미들웨어): 학습을 시작하기 전에 tensorflow 를 보장한다.
+// 미들웨어로 둔 이유 — 기존 학습 핸들러(검증·프레임 저장·타임아웃/killTree)를 한 줄도
+// 건드리지 않고 준비 단계만 앞에 붙일 수 있기 때문이다.
+function tmEnsureTfMiddleware(req, res, next) {
+  // 애초에 학습이 불가능한 요청(클래스/샘플 부족)이면 설치하지 말고 그대로 통과시켜
+  // 본래의 한국어 안내가 나가게 한다 — 수백 MB 를 헛되이 받지 않도록.
+  const b = req.body || {};
+  const labelCount = Array.isArray(b.labels)
+    ? b.labels.map((l) => String(l == null ? '' : l).trim()).filter(Boolean).length : 0;
+  if (labelCount < 2 || !Array.isArray(b.samples) || b.samples.length === 0) return next();
+
+  // 브라우저가 이미 떠났는지 판단은 **응답(res)** 으로만 한다. req.destroyed 는 쓰면 안 된다 —
+  // express.json 이 본문을 다 읽고 나면 정상 요청에서도 참이라 학습이 통째로 멈춰 버린다(실측).
+  const gone = () => res.writableEnded || res.destroyed;
+  ensureTensorflow().then((prep) => {
+    if (gone()) return;
+    if (!prep.ok) return res.json({ ok: false, error: prep.error, hint: prep.hint });
+    if (prep.notice) res.locals.tmNotice = prep.notice;
+    next();
+  }).catch((e) => {
+    if (gone()) return;
+    res.json({ ok: false, error: 'AI 학습 준비 중 오류: ' + (e && e.message), hint: 'PYTHON_CMD 확인' });
+  });
+}
+
+app.post('/api/tm/train', tmEnsureTfMiddleware, (req, res) => {
   const body = req.body || {};
   const fail = (error, hint) => res.json({ ok: false, error, hint });
 
@@ -986,7 +1409,8 @@ app.post('/api/tm/train', (req, res) => {
       let parsed;
       try { parsed = JSON.parse(lines[i]); } catch (_) { continue; }
       if (!parsed || typeof parsed !== 'object') continue;
-      if (parsed.ok) return reply({ ...parsed, path: outRel, absPath: outAbs });
+      // notice: 이번 요청에서 tensorflow 를 새로 내려받았다면 그 사실을 함께 알린다(계약 5).
+      if (parsed.ok) return reply({ ...parsed, path: outRel, absPath: outAbs, ...(res.locals.tmNotice ? { notice: res.locals.tmNotice } : {}) });
       return reply({ ok: false, error: parsed.error || 'TM 학습 실패', hint: parsed.hint || errOut.slice(-400) });
     }
     reply({ ok: false, error: 'TM 학습 응답 파싱 실패', hint: (out || errOut || '').slice(-400) });
@@ -1020,7 +1444,8 @@ function buildTree(absDir, relDir, depth) {
     return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
   });
   for (const e of entries) {
-    if (e.name === '.git' || e.name === '__pycache__') continue;
+    // .blockpy 는 앱이 쓰는 상태 폴더(state.json)다 — 학생 파일이 아니므로 탐색기에서 숨긴다.
+    if (e.name === '.git' || e.name === '__pycache__' || e.name === '.blockpy') continue;
     const rel = relDir ? `${relDir}/${e.name}` : e.name;
     const abs = path.join(absDir, e.name);
     if (e.isDirectory()) {
@@ -1094,6 +1519,58 @@ app.post('/api/fs/rename', (req, res) => {
   catch (e) { res.status(500).json({ error: 'rename failed: ' + e.message }); }
 });
 
+// ─── 앱 실시간 상태 파일 (계약 1) ───────────────────────────────────────────────
+// 왜 필요한가: 터미널의 AI 도우미는 브라우저 화면을 볼 수 없다. 학생이 "왜 안 돼요?" 라고
+// 물었을 때 도우미가 지금 어느 탭인지·무슨 파일인지·실행 중인지·마지막 출력이 무엇인지
+// 알 수 있어야 답할 수 있다. 그래서 프런트가 보낸 상태를 워크스페이스의
+// .blockpy/state.json 으로 떨궈 둔다(도우미가 그냥 파일로 읽는다).
+// - 원자적 쓰기(임시파일 → rename): 반쯤 쓰인 JSON 을 도우미가 읽는 일이 없게.
+// - 최대 1초에 한 번만 쓴다: 프런트는 상태가 바뀔 때마다 보내므로 그대로 쓰면 디스크를 혹사한다.
+// - 마지막 값은 메모리에도 들고 있어 GET 이 항상 최신을 준다.
+// - **어떤 실패도 앱을 죽이지 않는다** — 상태 파일은 부가 기능이지 본체가 아니다.
+const UI_STATE_FILE = path.join(WORKSPACE_DIR, '.blockpy', 'state.json');
+const UI_STATE_MIN_INTERVAL_MS = 1000;
+let uiStateLatest = null;   // 마지막으로 받은 상태(아직 안 쓰였을 수도 있다)
+let uiStateWrittenAt = 0;
+let uiStateTimer = null;
+
+function flushUiState() {
+  uiStateTimer = null;
+  if (uiStateLatest == null) return;
+  uiStateWrittenAt = Date.now();
+  try { writeJsonAtomic(UI_STATE_FILE, uiStateLatest); }   // 폴더가 없으면 만든다
+  catch (e) { console.log('[ui-state] write skipped:', e && e.message); }
+}
+
+function scheduleUiStateWrite(state) {
+  uiStateLatest = state;
+  if (uiStateTimer) return; // 이미 예약돼 있다 — 그때 최신값이 한 번에 쓰인다(스로틀)
+  const wait = UI_STATE_MIN_INTERVAL_MS - (Date.now() - uiStateWrittenAt);
+  if (wait <= 0) { flushUiState(); return; }
+  uiStateTimer = setTimeout(flushUiState, wait);
+  if (uiStateTimer.unref) uiStateTimer.unref(); // 남은 타이머가 서버/테스트 종료를 막지 않게
+}
+
+app.post('/api/ui-state', (req, res) => {
+  const body = req.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return res.status(400).json({ ok: false, error: 'state (JSON object) required' });
+  }
+  try { scheduleUiStateWrite(body); } catch (e) { console.log('[ui-state] skipped:', e && e.message); }
+  res.json({ ok: true });
+});
+
+app.get('/api/ui-state', (req, res) => {
+  if (uiStateLatest && typeof uiStateLatest === 'object') return res.json(uiStateLatest);
+  try {
+    if (fs.existsSync(UI_STATE_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(UI_STATE_FILE, 'utf8'));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return res.json(parsed);
+    }
+  } catch (_) { /* 깨진 파일은 없는 것으로 본다 */ }
+  res.json({});
+});
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -1125,23 +1602,74 @@ function pickShell() {
   return process.env.SHELL || 'bash';
 }
 
+// ── AI 도우미(opencode) 자동 실행 ──────────────────────────────────────────────
+// 이 터미널의 목적은 "학생이 AI 에게 물어보는 곳" 이다. 빈 셸 프롬프트를 주면 학생은
+// 무엇을 쳐야 할지 모른다 → 열자마자 opencode TUI 가 뜨게 한다.
+// 셸을 먼저 띄우고 그 안에서 실행하는 이유(직접 spawn 하지 않는 이유):
+//   opencode 를 빠져나오거나 그것이 죽어도 **셸이 남아** 터미널이 통째로 닫히지 않는다
+//   (직접 spawn 하면 종료 즉시 WS 가 끊겨 '다시 연결'을 눌러야 한다).
+// 끌 때는 BLOCKPY_TERMINAL_AI=0, 다른 명령으로 바꾸려면 BLOCKPY_TERMINAL_CMD=... 로.
+function resolveOnPath(bin) {
+  const exts = process.platform === 'win32'
+    ? (process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';')
+    : [''];
+  for (const dir of (process.env.PATH || '').split(path.delimiter)) {
+    if (!dir) continue;
+    for (const ext of exts) {
+      const p = path.join(dir, bin + ext);
+      try { if (fs.existsSync(p) && fs.statSync(p).isFile()) return p; } catch (_) {}
+    }
+  }
+  return null;
+}
+
+// 터미널이 열릴 때 셸 안에서 실행할 것. { cmd, dir } 또는 null(그냥 셸).
+// **이름이 아니라 절대 경로로 실행한다.** 서버를 Git Bash 에서 띄우면 PATH 가 POSIX 형식
+// (`/c/Users/...`)으로 상속돼 자식 PowerShell 이 `opencode` 를 못 찾는다(실측: CommandNotFound).
+function terminalBootCommand() {
+  if (process.env.BLOCKPY_TERMINAL_AI === '0') return null;
+  const custom = (process.env.BLOCKPY_TERMINAL_CMD || '').trim();
+  if (custom) return { cmd: custom, dir: null };
+  const bin = resolveOnPath('opencode');
+  return bin ? { cmd: bin, dir: path.dirname(bin) } : null;
+}
+
+function shellArgsFor(shell, boot) {
+  if (!boot) return [];
+  if (process.platform === 'win32') {
+    // -NoExit: boot 가 끝나거나 학생이 opencode 를 나가도 프롬프트가 남는다
+    // (직접 spawn 하면 그 순간 터미널이 닫혀 '다시 연결'을 눌러야 한다).
+    // & '경로' — 경로에 공백이 있어도 안전하게 호출.
+    return shell.toLowerCase().includes('powershell')
+      ? ['-NoLogo', '-NoExit', '-Command', `& '${boot.cmd.replace(/'/g, "''")}'`]
+      : ['/K', `"${boot.cmd}"`];             // cmd.exe 폴백
+  }
+  return ['-lc', `'${boot.cmd}'; exec ${shell}`];
+}
+
 function attachTerminal(ws) {
   let pty;
   try {
     // 지연 require: 네이티브 빌드가 없더라도 서버의 나머지는 살아있게 한다.
     const nodePty = require('node-pty');
     let shell = pickShell();
+    const boot = terminalBootCommand();          // 기본: opencode 절대경로 (AI 도우미 자동 실행)
+    // 학생이 opencode 를 나간 뒤 다시 `opencode` 라고 칠 수 있게 그 폴더를 PATH 앞에 붙인다.
+    const ptyPath = boot && boot.dir
+      ? [boot.dir, process.env.PATH].filter(Boolean).join(path.delimiter)
+      : process.env.PATH;
     try {
-      pty = nodePty.spawn(shell, [], {
+      pty = nodePty.spawn(shell, shellArgsFor(shell, boot), {
         name: 'xterm-color', cols: 80, rows: 24, cwd: WORKSPACE_DIR,
-        env: { ...process.env, PYTHONIOENCODING: 'utf-8',
+        env: { ...process.env, PATH: ptyPath, PYTHONIOENCODING: 'utf-8',
           PYTHONPATH: [RUNTIME_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
           BLOCKPY_TERMINAL: '1' },
       });
     } catch (e1) {
       if (process.platform === 'win32') {
         shell = process.env.COMSPEC || 'cmd.exe'; // powershell 실패 시 폴백
-        pty = nodePty.spawn(shell, [], { name: 'xterm-color', cols: 80, rows: 24, cwd: WORKSPACE_DIR,
+        pty = nodePty.spawn(shell, shellArgsFor(shell, boot), {
+          name: 'xterm-color', cols: 80, rows: 24, cwd: WORKSPACE_DIR,
           env: { ...process.env,
             PYTHONPATH: [RUNTIME_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
             BLOCKPY_TERMINAL: '1' } });

@@ -1,0 +1,45 @@
+[
+ {
+  "module": "robotvision",
+  "entries": [
+   {
+    "kind": "function",
+    "name": "is_ready",
+    "qualName": "robotvision.is_ready",
+    "params": [],
+    "returns": true
+   },
+   {
+    "kind": "function",
+    "name": "to_robot",
+    "qualName": "robotvision.to_robot",
+    "params": [
+     {
+      "name": "u",
+      "kind": "positional",
+      "hasDefault": false
+     },
+     {
+      "name": "v",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": true
+   },
+   {
+    "kind": "function",
+    "name": "find_object",
+    "qualName": "robotvision.find_object",
+    "params": [
+     {
+      "name": "frame",
+      "kind": "positional",
+      "hasDefault": false
+     }
+    ],
+    "returns": true
+   }
+  ]
+ }
+]

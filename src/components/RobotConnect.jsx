@@ -104,29 +104,20 @@ export default function RobotConnect({ onConnectedChange }) {
   };
 
   return (
-    <div className="robot-connect-panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* 상태 */}
-      <div>
-        <div style={{ fontWeight: 600, marginBottom: 6 }}>로봇 연결</div>
-        <div id="robot-status" style={{ fontSize: 13 }}>
-          {connected ? (
-            <span style={{ color: 'var(--run-ink)' }}>
-              <i className="fa-solid fa-circle" style={{ fontSize: 8, marginRight: 6 }}></i>
-              연결됨{connectedPort ? ` — ${connectedPort}` : ''}{statusLine ? ` · ${statusLine}` : ''}
-            </span>
-          ) : (
-            <span style={{ opacity: 0.7 }}>
-              <i className="fa-regular fa-circle" style={{ fontSize: 8, marginRight: 6 }}></i>
-              연결 안 됨
-            </span>
-          )}
-        </div>
+    <div className="robot-connect-panel">
+      {/* 팝업 헤더가 "로봇 연결" 이라고 알려주므로 제목을 또 쓰지 않는다. 대신 지금 상태를 크게.
+          상태 점은 FontAwesome regular 글리프 대신 CSS 원으로 — 아이콘 폰트가 빠진 환경에서
+          알파벳 'o' 처럼 보이던 문제를 없앤다. */}
+      <div id="robot-status" className={`bpy-status${connected ? ' on' : ''}`}>
+        <span className="bpy-status-dot" aria-hidden="true" />
+        {connected ? (
+          <>연결됨{connectedPort ? ` — ${connectedPort}` : ''}{statusLine ? ` · ${statusLine}` : ''}</>
+        ) : '연결 안 됨'}
       </div>
 
-      {/* 기기 유형 */}
-      <div>
-        <div style={{ fontWeight: 600, marginBottom: 6 }}>기기 유형</div>
-        <div style={{ display: 'flex', gap: 8 }}>
+      <section className="bpy-step">
+        <h4><span className="bpy-stepn">1</span> 기기 유형</h4>
+        <div className="bpy-btnrow">
           {DEVICES.map((d) => (
             <button
               key={d.id}
@@ -140,29 +131,31 @@ export default function RobotConnect({ onConnectedChange }) {
             </button>
           ))}
         </div>
-      </div>
+      </section>
 
       {/* 포트: DobotLink 조회 결과 드롭다운 + 새로고침 + 수동 입력 폴백 */}
-      <div>
-        <div style={{ fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-          포트
+      <section className="bpy-step">
+        <h4>
+          <span className="bpy-stepn">2</span> 포트 고르기
           <button
             id="robot-ports-refresh"
-            className="btn btn-secondary btn-xs"
+            className="btn btn-secondary btn-xs bpy-h4btn"
             onClick={() => fetchPorts(device)}
             disabled={connected || loadingPorts}
             title="DobotLink에서 포트 다시 조회"
           >
             <i className={`fa-solid fa-rotate ${loadingPorts ? 'fa-spin' : ''}`}></i> 조회
           </button>
-        </div>
+        </h4>
         {ports.length > 0 && (
           <select
             id="robot-port-select"
+            className="bpy-field"
+            aria-label="포트 선택"
             value={ports.includes(port) ? port : ''}
             onChange={(e) => setPort(e.target.value)}
             disabled={connected || connecting}
-            style={{ width: '100%', padding: '6px 8px', boxSizing: 'border-box', marginBottom: 6 }}
+            style={{ marginBottom: 6 }}
           >
             <option value="" disabled>포트 선택…</option>
             {ports.map((p) => <option key={p} value={p}>{p}</option>)}
@@ -170,23 +163,25 @@ export default function RobotConnect({ onConnectedChange }) {
         )}
         <input
           id="robot-port-input"
+          className="bpy-field"
           type="text"
           value={port}
+          aria-label="포트 직접 입력"
           onChange={(e) => setPort(e.target.value)}
           placeholder={loadingPorts ? '포트 조회 중…' : '예: COM8 (팔) / COM5 (카)'}
           disabled={connected || connecting}
-          style={{ width: '100%', padding: '6px 8px', boxSizing: 'border-box' }}
         />
-      </div>
+      </section>
 
       {/* 연결 / 해제 */}
-      <div style={{ display: 'flex', gap: 8 }}>
+      <section className="bpy-step">
+        <h4><span className="bpy-stepn">3</span> 연결</h4>
+        <div className="bpy-btnrow grow">
         <button
           id="robot-connect-btn"
           className="btn btn-primary"
           onClick={connect}
           disabled={!port.trim() || connected || connecting}
-          style={{ flex: 1 }}
         >
           <i className={`fa-solid ${connecting ? 'fa-spinner fa-spin' : 'fa-plug'}`}></i> {connecting && !connected ? '연결 중…' : '연결'}
         </button>
@@ -195,20 +190,21 @@ export default function RobotConnect({ onConnectedChange }) {
           className="btn btn-secondary"
           onClick={disconnect}
           disabled={!connected || connecting}
-          style={{ flex: 1 }}
         >
           <i className="fa-solid fa-plug-circle-xmark"></i> 연결 해제
         </button>
-      </div>
-
-      {error && (
-        <div id="robot-error" style={{ fontSize: 12.5, color: 'var(--stop-ink)', lineHeight: 1.5 }}>
-          <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 6 }}></i>{error}
         </div>
-      )}
-      <div style={{ fontSize: 12, opacity: 0.6 }}>
-        ※ DobotLink.exe가 실행 중이어야 합니다. 팔은 보통 COM8, 카는 COM5 계열입니다(자동 선택이 어긋나면 직접 지정).
-      </div>
+
+        {error && (
+          <div id="robot-error" className="bpy-alert stop">
+            <i className="fa-solid fa-triangle-exclamation"></i>{error}
+          </div>
+        )}
+        <div className="bpy-note">
+          ※ <b>DobotLink.exe</b> 가 실행 중이어야 합니다. 팔은 보통 <code>COM8</code>, 카는 <code>COM5</code> 계열입니다
+          (자동 선택이 어긋나면 직접 지정).
+        </div>
+      </section>
     </div>
   );
 }

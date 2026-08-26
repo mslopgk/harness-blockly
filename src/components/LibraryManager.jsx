@@ -63,9 +63,9 @@ export default function LibraryManager({
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keys }),
       });
       const d = await r.json().catch(() => null);
-      if (r.ok && d && d.success) { setKeyInput(''); setKeyMsg(`✅ ${d.count} key(s) saved`); await refreshAiCfg(); }
-      else { setKeyMsg(`⚠️ ${(d && d.error) || `save failed (${r.status})`}`); }
-    } catch (e) { setKeyMsg(`⚠️ ${e.message} — is the backend running?`); }
+      if (r.ok && d && d.success) { setKeyInput(''); setKeyMsg(`✅ 키 ${d.count}개 저장됨`); await refreshAiCfg(); }
+      else { setKeyMsg(`⚠️ ${(d && d.error) || `저장 실패 (${r.status})`}`); }
+    } catch (e) { setKeyMsg(`⚠️ ${e.message} — 백엔드 서버가 실행 중인지 확인하세요.`); }
     finally { setSavingKey(false); }
   };
 
@@ -81,43 +81,40 @@ export default function LibraryManager({
 
   return (
     <div className="library-card">
-      <div className="panel-header">
-        <div className="panel-title-group">
-          <i className="fa-solid fa-cube icon-cyan"></i>
-          <h3>Library Blocks</h3>
-        </div>
-        <span id="dynamic-blocks-count" className="badge badge-system">
-          {installedBlocks.length} Blocks
-        </span>
-      </div>
+      {/* 팝업 헤더가 "AI 라이브러리" 라고 알려주므로 제목을 또 쓰지 않는다. */}
+      <p className="bpy-phint">
+        파이썬 라이브러리를 설치하면 그 기능들이 <b>블록 툴박스</b>에 자동으로 생깁니다.
+        <span id="dynamic-blocks-count" className="badge badge-system">블록 {installedBlocks.length}개</span>
+      </p>
 
       <div className="library-body">
 
         {/* ── Installed libraries (toolbox tabs) + delete ──── */}
         <div className="form-group">
           <div className="lib-manage-head">
-            <label style={{ margin: 0 }}>Toolbox tabs</label>
+            <label style={{ margin: 0 }}>툴박스 탭</label>
             {userLibCount > 0 && (
-              <button className="btn btn-secondary btn-xs" onClick={onClearLibraries} title="Remove all added libraries and curated tabs">
-                <i className="fa-solid fa-trash-can"></i> Clear all
+              <button className="btn btn-secondary btn-xs" onClick={onClearLibraries} title="추가한 라이브러리와 ★ 탭을 모두 제거">
+                <i className="fa-solid fa-trash-can"></i> 모두 지우기
               </button>
             )}
           </div>
           <div className="lib-list">
             {libraries.length === 0 ? (
-              <div className="empty-list-placeholder">No libraries yet. Install or blockify one below.</div>
+              <div className="empty-list-placeholder">아직 추가한 라이브러리가 없습니다. 아래에서 설치해 보세요.</div>
             ) : libraries.map((l) => (
               <div key={l.lib} className={`lib-row${l.curation ? ' lib-row-curated' : ''}`} title={l.lib}>
                 <span className="lib-row-name">
                   <i className={`fa-solid ${l.curation ? 'fa-star' : 'fa-layer-group'}`}></i> {l.lib}
                 </span>
                 <span className="lib-row-count">
-                  {l.blockCount} block{l.blockCount !== 1 ? 's' : ''}{l.macroCount ? ` · ${l.macroCount} macro${l.macroCount !== 1 ? 's' : ''}` : ''}
+                  블록 {l.blockCount}개{l.macroCount ? ` · 매크로 ${l.macroCount}개` : ''}
                 </span>
                 {l.builtin ? (
-                  <span className="lib-row-builtin" title="Built-in preset — comes back on reload">built-in</span>
+                  <span className="lib-row-builtin" title="기본 제공 — 새로 고쳐도 다시 나타납니다">기본 제공</span>
                 ) : (
-                  <button className="lib-row-del" title={`Remove "${l.lib}"${l.curation ? ' (curated tab)' : ' and its toolbox tab'}`} onClick={() => onRemoveLibrary(l.lib)}>
+                  <button className="lib-row-del" title={`"${l.lib}" 제거${l.curation ? ' (★ 탭)' : ' — 툴박스 탭도 함께'}`}
+                    aria-label={`${l.lib} 제거`} onClick={() => onRemoveLibrary(l.lib)}>
                     <i className="fa-solid fa-xmark"></i>
                   </button>
                 )}
@@ -128,7 +125,7 @@ export default function LibraryManager({
 
         {/* ── 1) pip install → installs AND generates every block ──── */}
         <div className="form-group">
-          <label htmlFor="pip-pkg-input">1 · Install a library — all blocks appear in the toolbox</label>
+          <label htmlFor="pip-pkg-input">1 · 라이브러리 설치 — 블록이 툴박스에 자동으로 생겨요</label>
           <form
             className="pip-form"
             onSubmit={(e) => { e.preventDefault(); onPipInstallShell && onPipInstallShell(); }}
@@ -140,18 +137,18 @@ export default function LibraryManager({
               type="text"
               value={pipPkg}
               onChange={(e) => onPipPkgChange && onPipPkgChange(e.target.value)}
-              placeholder="e.g. pydobot, pillow, numpy, mediapipe ..."
+              placeholder="예: pydobot, pillow, numpy, mediapipe …"
             />
             <button type="submit" className="btn btn-primary btn-sm" disabled={isAbstracting || !pipPkg.trim()}>
-              {isAbstracting ? <i className="fa-solid fa-gear fa-spin"></i> : <i className="fa-solid fa-download"></i>} Install
+              {isAbstracting ? <i className="fa-solid fa-gear fa-spin"></i> : <i className="fa-solid fa-download"></i>} 설치
             </button>
           </form>
-          <small className="form-hint">Installs into the local Python and immediately introspects it — every function/method becomes a block (a <b>command</b> form and a <b>value</b> form) in its own toolbox tab.</small>
+          <small className="form-hint">이 컴퓨터의 파이썬에 설치하고 곧바로 살펴봐서, 함수·메서드 하나하나를 블록으로 만듭니다(<b>실행</b>형과 <b>값</b>형 두 가지). 라이브러리마다 툴박스 탭이 하나 생깁니다.</small>
         </div>
 
         {/* ── Already-installed? Blockify by module name without re-installing ──── */}
         <div className="form-group">
-          <label htmlFor="blockify-mod-input">Already installed? Generate blocks by module name</label>
+          <label htmlFor="blockify-mod-input">이미 설치돼 있나요? 모듈 이름으로 블록 만들기</label>
           <form
             className="pip-form"
             onSubmit={(e) => { e.preventDefault(); handleBlockifyClick(); }}
@@ -162,10 +159,10 @@ export default function LibraryManager({
               type="text"
               value={blockifyMod}
               onChange={(e) => setBlockifyMod(e.target.value)}
-              placeholder="e.g. pydobot, PIL.Image, numpy ..."
+              placeholder="예: pydobot, PIL.Image, numpy …"
             />
-            <button type="submit" className="btn btn-secondary btn-sm" disabled={isAbstracting || !blockifyMod.trim()}>
-              {isAbstracting ? <i className="fa-solid fa-gear fa-spin"></i> : <i className="fa-solid fa-cubes"></i>} Blockify
+            <button type="submit" id="btn-blockify" className="btn btn-secondary btn-sm" disabled={isAbstracting || !blockifyMod.trim()}>
+              {isAbstracting ? <i className="fa-solid fa-gear fa-spin"></i> : <i className="fa-solid fa-cubes"></i>} 블록 만들기
             </button>
           </form>
           {/* Opt-in: blockify the WHOLE package tree (every importable submodule), not just the one
@@ -184,7 +181,7 @@ export default function LibraryManager({
 
         {/* ── 2) Curate → a small, purpose-driven subset in a NEW tab ──── */}
         <div className="form-group">
-          <label htmlFor="curate-mod-input">2 · Curate — a few blocks for a goal, in a new ★ tab</label>
+          <label htmlFor="curate-mod-input">2 · 골라 담기 — 목표에 필요한 블록만 새 ★ 탭으로</label>
           <form
             className="pip-form"
             onSubmit={(e) => { e.preventDefault(); handleCurateClick(); }}
@@ -195,7 +192,7 @@ export default function LibraryManager({
               type="text"
               value={curateMod}
               onChange={(e) => setCurateMod(e.target.value)}
-              placeholder="module — e.g. pydobot"
+              placeholder="모듈 — 예: pydobot"
               style={{ maxWidth: 160 }}
             />
             <input
@@ -204,10 +201,10 @@ export default function LibraryManager({
               type="text"
               value={curatePurpose}
               onChange={(e) => setCuratePurpose(e.target.value)}
-              placeholder="purpose — e.g. 픽 앤 플레이스: 이동·집기·놓기"
+              placeholder="목표 — 예: 픽 앤 플레이스: 이동·집기·놓기"
             />
             <button type="submit" className="btn btn-primary btn-sm" disabled={isAbstracting || isCurating || !curateMod.trim() || !curatePurpose.trim()}>
-              {isCurating ? <i className="fa-solid fa-gear fa-spin"></i> : <i className="fa-solid fa-wand-magic-sparkles"></i>} Curate
+              {isCurating ? <i className="fa-solid fa-gear fa-spin"></i> : <i className="fa-solid fa-wand-magic-sparkles"></i>} 골라 담기
             </button>
             {/* No-AI path: deterministic heuristic curation. Works fully offline / with no key —
                 the AI Curate above also falls back to this automatically if the key/backend is down. */}
@@ -223,7 +220,7 @@ export default function LibraryManager({
             )}
           </form>
           {/* Abstraction level: same library, different granularity (초=고수준·각도만 … 고=저수준·PWM/타이밍). */}
-          <div className="curate-level" role="radiogroup" aria-label="Abstraction level">
+          <div className="curate-level" role="radiogroup" aria-label="블록 수준">
             <span className="curate-level-label">수준</span>
             {[['beginner', '초등', '고수준·직관 (각도만)'], ['intermediate', '중등', '핵심 파라미터'], ['advanced', '고등', '저수준·정밀 (PWM/타이밍)']].map(([val, ko, tip]) => (
               <button
@@ -236,7 +233,7 @@ export default function LibraryManager({
               >{ko}</button>
             ))}
           </div>
-          <small className="form-hint">Keeps the full library tab and adds a separate <b>★ curated</b> tab — the AI picks just the blocks (grouped) needed for that goal, at the chosen <b>수준</b>. Needs an AI key (below).</small>
+          <small className="form-hint">원래 라이브러리 탭은 그대로 두고, <b>★ 골라 담은</b> 탭을 따로 만듭니다 — 그 목표에 필요한 블록만 AI가 골라서 한 탭에 모아 줍니다(선택한 <b>수준</b> 기준). AI 키가 필요합니다(아래).</small>
 
           {/* PREVIEW: the AI proposal — review/edit before the ★ tab is created (LLM proposes, you confirm) */}
           {curationProposal && (
@@ -334,7 +331,7 @@ export default function LibraryManager({
           </div>
           <div id="ai-chat-sim" className="ai-chat-body">
             {aiThoughts.length === 0
-              ? <div className="thoughts-placeholder">Install or curate a library to see what was generated.</div>
+              ? <div className="thoughts-placeholder">라이브러리를 설치하거나 골라 담으면, 무엇이 만들어졌는지 여기에 보입니다.</div>
               : aiThoughts.map((t, i) => (
                   <div key={i} className="ai-chat-bubble ai">
                     <strong>AI:</strong> {t}
@@ -350,7 +347,7 @@ export default function LibraryManager({
           </div>
           <div id="dynamic-blocks-list" className="dyn-blocks-body">
             {installedBlocks.length === 0
-              ? <div className="empty-list-placeholder">No custom blocks yet.</div>
+              ? <div className="empty-list-placeholder">아직 추가된 블록이 없습니다.</div>
               : installedBlocks.map((b, i) => (
                   <div key={i} className="dyn-block-pill">
                     <span className="dyn-block-name">{b.title}</span>

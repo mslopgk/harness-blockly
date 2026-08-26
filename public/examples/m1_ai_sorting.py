@@ -46,3 +46,6 @@ else:
     arm.move_to(150, -100, 40)
 arm.suck(False)
 arm.home()
+
+# 바람을 끄지 않으면 계속 돌아간다 — 코드 마지막은 언제나 펌프 정지
+arm.pump_off()

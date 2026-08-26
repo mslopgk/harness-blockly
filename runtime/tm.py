@@ -23,7 +23,14 @@ def _ensure_tf():
 
 
 def _resolve_weights():
-    # 번들 가중치(runtime/mobilenet_v2_weights.h5) 우선, 없으면 keras 'imagenet'(캐시/다운로드).
+    # 가중치를 찾는 순서:
+    #   1) BLOCKPY_TM_WEIGHTS — 온라인 설치본이 첫 실행 때 받아 둔 파일(앱이 이 변수로 알려 준다).
+    #      설치 폴더에는 쓸 수 없어 userData 아래에 두므로 경로를 코드에 박을 수 없다.
+    #   2) runtime/mobilenet_v2_weights.h5 — 오프라인 완본이 함께 담아 온 것.
+    #   3) keras 'imagenet' — 위 둘이 없을 때. 이때는 **첫 학습에 인터넷이 필요하다**.
+    env = os.environ.get("BLOCKPY_TM_WEIGHTS", "").strip()
+    if env and os.path.exists(env):
+        return env
     here = os.path.dirname(os.path.abspath(__file__))
     bundled = os.path.join(here, "mobilenet_v2_weights.h5")
     return bundled if os.path.exists(bundled) else "imagenet"

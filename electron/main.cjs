@@ -21,14 +21,49 @@ process.env.PYTHONIOENCODING = process.env.PYTHONIOENCODING || 'utf-8';
 // NO system install. Packaged: resources/python/python.exe (electron-builder extraResources).
 // Dev: ./python-embed/python.exe if built. Falls back to system python when neither exists.
 // Set before requiring server.js, which reads PYTHON_CMD at module-load.
-const BUNDLED_PY = app.isPackaged
-  ? path.join(process.resourcesPath, 'python', 'python.exe')
-  : path.join(__dirname, '..', 'python-embed', 'python.exe');
+// 온라인 설치본은 무거운 것을 담지 않고 첫 실행 때 userData 아래로 받아 둔다(electron/setup).
+// 그래서 후보가 둘이다: ① 오프라인 완본이 담아 온 resources/python ② 온라인 설치본이 받아 둔 userData.
+// 먼저 있는 것을 쓴다. 둘 다 없으면 시스템 파이썬으로 물러난다.
+const DOWNLOADED_RT = path.join(app.getPath('userData'), 'runtime');
+const PY_CANDIDATES = app.isPackaged
+  ? [path.join(process.resourcesPath, 'python', 'python.exe'), path.join(DOWNLOADED_RT, 'python', 'python.exe')]
+  : [path.join(__dirname, '..', 'python-embed', 'python.exe'), path.join(DOWNLOADED_RT, 'python', 'python.exe')];
+const BUNDLED_PY = PY_CANDIDATES.find((p) => fs.existsSync(p)) || PY_CANDIDATES[0];
 if (fs.existsSync(BUNDLED_PY)) {
   process.env.PYTHON_CMD = BUNDLED_PY;
   console.log('[python] using bundled runtime:', BUNDLED_PY);
 } else if (!process.env.PYTHON_CMD) {
   console.log('[python] bundled runtime not found — falling back to system python');
+}
+
+// 배포본에 실린 AI 키를 환경변수로 넘긴다. opencode 는 models.dev 규약대로 DEEPSEEK_API_KEY 를
+// 읽으므로, 사용자 홈의 auth.json 을 만들거나 고치지 않아도 바로 답한다(실측: auth.json 없는
+// 격리 환경에서 DEEPSEEK_API_KEY 만으로 deepseek/deepseek-v4-flash 응답 확인).
+// 키 파일(electron/bundled-keys.cjs)은 깃에 없다 — 빌드 때만 asar 에 들어간다.
+// 이미 환경변수나 `opencode auth login` 으로 넣은 것이 있으면 그것을 우선한다(덮지 않는다).
+try {
+  const bundled = require('./bundled-keys.cjs');
+  for (const [k, v] of Object.entries(bundled)) {
+    if (v && !process.env[k]) {
+      process.env[k] = v;
+      console.log(`[ai-terminal] bundled key set: ${k} (…${String(v).slice(-4)})`);
+    }
+  }
+} catch (_) {
+  console.log('[ai-terminal] no bundled key file — AI 도우미는 사용자가 직접 로그인해야 한다');
+}
+
+// Bundled opencode (AI 도우미 터미널). Packaged: resources/opencode/opencode.exe; dev:
+// ./opencode-embed/opencode.exe. server.js reads BLOCKPY_TERMINAL_CMD and boots it when a terminal
+// opens, so a fresh machine needs NO Node.js and NO `npm i -g opencode-ai` — the binary is
+// self-contained (MIT). Falls back to `opencode` on PATH when the bundle is absent.
+const OC_CANDIDATES = app.isPackaged
+  ? [path.join(process.resourcesPath, 'opencode', 'opencode.exe'), path.join(DOWNLOADED_RT, 'opencode', 'opencode.exe')]
+  : [path.join(__dirname, '..', 'opencode-embed', 'opencode.exe'), path.join(DOWNLOADED_RT, 'opencode', 'opencode.exe')];
+const BUNDLED_OC = OC_CANDIDATES.find((p) => fs.existsSync(p)) || OC_CANDIDATES[0];
+if (!process.env.BLOCKPY_TERMINAL_CMD && fs.existsSync(BUNDLED_OC)) {
+  process.env.BLOCKPY_TERMINAL_CMD = BUNDLED_OC;
+  console.log('[ai-terminal] using bundled opencode:', BUNDLED_OC);
 }
 
 // AI key config (option A): the in-app Settings panel saves the MiniMax key to a per-machine,
@@ -89,10 +124,45 @@ async function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-app.whenReady().then(createWindow).catch((err) => {
-  console.error('[electron] failed to start:', err);
-  app.quit();
-});
+// 온라인 설치본의 첫 실행 준비. 파이썬이 이미 있으면(오프라인 완본이거나 이미 받아 뒀으면)
+// 아무 것도 하지 않고 바로 지나간다 — 준비 창도 뜨지 않는다.
+// 실패해도 앱은 뜬다: 시스템 파이썬으로 물러나거나, 사용자가 나중에 다시 시도할 수 있어야 한다.
+const NL = String.fromCharCode(10);   // 소스에 백슬래시 이스케이프를 두지 않으려고 상수로 쓴다
+async function ensureRuntimeIfNeeded() {
+  if (fs.existsSync(BUNDLED_PY)) return;                       // 이미 갖춰짐
+  let ui = null;
+  try {
+    const { ensureRuntime } = require('./setup/install.cjs');
+    const { openSetupWindow } = require('./setup/window.cjs');
+    ui = openSetupWindow(fs.existsSync(ICON_PNG) ? ICON_PNG : null);
+    const res = await ensureRuntime(app.getPath('userData'), (e) => {
+      console.log(`[setup] ${e.step}: ${e.msg}`);
+      ui.update(e);
+    });
+    if (res.warnings && res.warnings.length) {
+      console.warn('[setup] 경고:', res.warnings.join(' / '));
+      ui.update({ warn: res.warnings.join(NL) });
+      await new Promise((r) => setTimeout(r, 2500));           // 경고를 읽을 시간
+    }
+    // 준비된 것을 이번 실행부터 바로 쓴다(다시 켜지 않아도 되게).
+    if (res.pythonExe && fs.existsSync(res.pythonExe)) process.env.PYTHON_CMD = res.pythonExe;
+    if (res.opencodeExe && fs.existsSync(res.opencodeExe)) process.env.BLOCKPY_TERMINAL_CMD = res.opencodeExe;
+    if (res.weights && fs.existsSync(res.weights)) process.env.BLOCKPY_TM_WEIGHTS = res.weights;
+  } catch (e) {
+    console.error('[setup] 준비 실패:', e && e.message);
+    if (ui) { ui.update({ err: '준비에 실패했습니다: ' + (e && e.message) + NL + '앱은 그대로 열립니다. 인터넷을 확인한 뒤 다시 켜 주세요.' }); await new Promise((r) => setTimeout(r, 5000)); }
+  } finally {
+    if (ui) ui.close();
+  }
+}
+
+app.whenReady()
+  .then(ensureRuntimeIfNeeded)
+  .then(createWindow)
+  .catch((err) => {
+    console.error('[electron] failed to start:', err);
+    app.quit();
+  });
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();

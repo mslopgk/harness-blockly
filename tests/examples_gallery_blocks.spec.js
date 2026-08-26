@@ -23,11 +23,14 @@ test.describe('every example converts to visible blocks', () => {
       // 2. The editor must hold this example's code.
       expect(await page.locator('#python-code').inputValue()).toBe(sn.code);
 
-      // 3. Convert — must be Code Valid, never a Parser Error.
+      // 3. Convert — 문법 상태가 정상이어야 한다(오류 아님).
+      //    문구("문법 오류"/"Parser Error")로 검사하면 라벨을 번역·수정하는 순간 조용히
+      //    무조건 통과하는 헛단정이 된다 → 상태를 나타내는 클래스로 검사한다.
       await page.locator('#btn-sync-to-blocks').click();
       await page.waitForTimeout(700);
-      const status = (await page.locator('#syntax-status-text').textContent()) || '';
-      expect(status).not.toContain('Parser Error');
+      const cls = (await page.locator('#syntax-status-text').getAttribute('class')) || '';
+      expect(cls, `문법 상태: ${(await page.locator('#syntax-status-text').textContent()) || ''}`).toContain('valid');
+      expect(cls).not.toContain('invalid');
 
       // 4. Switch to the Blockly tab and assert real, on-screen blocks.
       await page.locator('#tab-btn-blockly').click();

@@ -59,7 +59,7 @@ export default function FileExplorer({ activeFile, onOpenFile, onChanged, reload
 
   const del = async (node, e) => {
     e.stopPropagation();
-    if (!window.confirm(`Delete "${node.name}"?${node.type === 'dir' ? ' (folder and everything inside)' : ''}`)) return;
+    if (!window.confirm(`"${node.name}" 을(를) 삭제할까요?${node.type === 'dir' ? '\n폴더와 그 안의 모든 파일이 지워집니다.' : ''}`)) return;
     setBusy(true);
     try {
       await fetch('/api/fs/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: node.path }) });
@@ -97,7 +97,7 @@ export default function FileExplorer({ activeFile, onOpenFile, onChanged, reload
           )}
           <i className={`${node.ext === '.py' ? '' : 'fa-solid '}${iconFor(node)} fx-icon`}></i>
           <span className="fx-name">{node.name}</span>
-          <button className="fx-del" title="Delete" onClick={(e) => del(node, e)}>
+          <button className="fx-del" title="삭제" aria-label={`${node.name} 삭제`} onClick={(e) => del(node, e)}>
             <i className="fa-solid fa-xmark"></i>
           </button>
         </div>
@@ -110,31 +110,29 @@ export default function FileExplorer({ activeFile, onOpenFile, onChanged, reload
 
   return (
     <div className="fx-card">
-      <div className="panel-header">
-        <div className="panel-title-group">
-          <i className="fa-solid fa-folder-tree icon-cyan"></i>
-          <h3>Files</h3>
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button className="btn btn-secondary btn-sm" title="New File" disabled={busy}
-            onClick={() => { setCreating('file'); setNewName(''); }}>
-            <i className="fa-solid fa-file-circle-plus"></i>
-          </button>
-          <button className="btn btn-secondary btn-sm" title="New Folder" disabled={busy}
-            onClick={() => { setCreating('folder'); setNewName(''); }}>
-            <i className="fa-solid fa-folder-plus"></i>
-          </button>
-          <button className="btn btn-secondary btn-sm" title="Refresh" onClick={refresh}>
-            <i className="fa-solid fa-rotate"></i>
-          </button>
-        </div>
+      {/* 팝업 헤더가 이미 "파일" 이라고 알려주므로 패널 제목을 또 쓰지 않는다.
+          대신 실제로 누를 것들을 이름과 함께 놓는다(아이콘만 있으면 학생이 알 수 없다). */}
+      <div className="bpy-ptools">
+        <button className="btn btn-secondary btn-sm" disabled={busy}
+          onClick={() => { setCreating('file'); setNewName(''); }}>
+          <i className="fa-solid fa-file-circle-plus"></i> 새 파일
+        </button>
+        <button className="btn btn-secondary btn-sm" disabled={busy}
+          onClick={() => { setCreating('folder'); setNewName(''); }}>
+          <i className="fa-solid fa-folder-plus"></i> 새 폴더
+        </button>
+        <button className="btn btn-secondary btn-sm bpy-ico-btn" onClick={refresh}
+          title="새로고침" aria-label="새로고침">
+          <i className="fa-solid fa-rotate"></i>
+        </button>
       </div>
 
-      <div className="fx-target" title="New files/folders are created here">
+      <div className="fx-target" title="새로 만드는 파일·폴더가 여기에 생깁니다">
         <i className="fa-solid fa-location-dot"></i>{' '}
-        {selectedDir ? selectedDir + '/' : '(workspace root)'}
+        <span className="fx-target-lb">만들 위치</span>
+        {selectedDir ? selectedDir + '/' : '워크스페이스 최상위'}
         {selectedDir && (
-          <button className="fx-up" title="Up to root" onClick={() => setSelectedDir('')}>
+          <button className="fx-up" title="최상위로" aria-label="최상위로" onClick={() => setSelectedDir('')}>
             <i className="fa-solid fa-arrow-up-from-bracket"></i>
           </button>
         )}
@@ -146,23 +144,31 @@ export default function FileExplorer({ activeFile, onOpenFile, onChanged, reload
           <input
             autoFocus
             className="fx-input"
-            placeholder={creating === 'folder' ? 'folder name' : 'file name (e.g. script.py)'}
+            placeholder={creating === 'folder' ? '폴더 이름' : '파일 이름 (예: test.py)'}
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') submitCreate(); if (e.key === 'Escape') { setCreating(null); setNewName(''); } }}
           />
-          <button className="btn btn-primary btn-xs" onClick={submitCreate} disabled={busy}>Add</button>
-          <button className="btn btn-secondary btn-xs" onClick={() => { setCreating(null); setNewName(''); }}>✕</button>
+          <button className="btn btn-primary btn-xs" onClick={submitCreate} disabled={busy}>만들기</button>
+          <button className="btn btn-secondary btn-xs" onClick={() => { setCreating(null); setNewName(''); }}
+            title="취소" aria-label="취소">✕</button>
         </div>
       )}
 
       <div className="fx-tree">
         {tree.length === 0 ? (
-          <div className="fx-empty">No files yet. Use <b>New File</b> to start.</div>
+          <div className="fx-empty">
+            <i className="fa-regular fa-folder-open"></i>
+            <b>아직 파일이 없습니다</b>
+            <p>
+              <b>새 파일</b> 을 눌러 만들어 보세요. 저장한 코드와, <b>TM</b> 패널에서
+              <b> 저장</b> 한 모델 파일(<code>.npz</code>)이 여기에 나타납니다.
+            </p>
+          </div>
         ) : renderNodes(tree, 0)}
       </div>
 
-      {root && <div className="fx-root" title={root}>{root}</div>}
+      {root && <div className="fx-root" title={root}><span>폴더 위치</span>{root}</div>}
     </div>
   );
 }

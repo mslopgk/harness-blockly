@@ -15,15 +15,15 @@ export default function ConsoleLogs({ logs, onClearConsole }) {
       <div className="panel-header">
         <div className="panel-title-group">
           <i className="fa-solid fa-terminal icon-green"></i>
-          <h3>Console & Logs</h3>
+          <h3>실행 출력</h3>
         </div>
         <button 
           className="btn btn-secondary btn-sm" 
           id="btn-clear-console"
           onClick={onClearConsole}
-          title="Clear Terminal Outputs"
+          title="출력 내용을 모두 지웁니다"
         >
-          <i className="fa-solid fa-trash-can"></i> Clear
+          <i className="fa-solid fa-trash-can"></i> 지우기
         </button>
       </div>
       <div 

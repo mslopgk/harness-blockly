@@ -24,7 +24,8 @@ test('Blockify UI: introspect html.parser → Library blocks, method round-trips
   // `#tab-btn-library` 컨트롤은 이 레이아웃에 존재하지 않는다(디자인 v2 이전부터 부재).
   await page.locator('#tab-btn-ai').click();
   await page.locator('#blockify-mod-input').fill('html.parser');
-  await page.getByRole('button', { name: /Blockify/ }).click();
+  // 라벨은 한국어로 바뀔 수 있으므로(현재 '블록 만들기') 문구 대신 id 로 잡는다.
+  await page.locator('#btn-blockify').click();
 
   // The registry grows only if /api/blockify answered — a clear message when the backend is down.
   const grew = await page

@@ -11,14 +11,14 @@ test.describe('Example Gallery Tab — 수업(강의자료) 예제', () => {
       null, { timeout: 60000 },
     );
 
-    // 수업 예제 5개 등록 확인
-    expect(await page.evaluate(() => window.BlockPyLessonExamples.length)).toBe(5);
+    // 수업 예제 15개 등록 확인 (2026-08-11: 차시별 3단계로 쪼갬 — 중등 6 + 고등 9)
+    expect(await page.evaluate(() => window.BlockPyLessonExamples.length)).toBe(15);
 
-    // 좌측 '예제' 탭 열기 → '수업 (고등)' 필터(H1/H2/H3 → 3개)
+    // 좌측 '예제' 탭 열기 → '수업 (고등)' 필터(H1/H2/H3 × 3단계 → 9개)
     await page.locator('#tab-btn-examples').click();
     await expect(page.locator('#example-card-grid')).toBeVisible();
     await page.locator('.example-cat-chip', { hasText: '수업 (고등)' }).click();
-    await expect.poll(async () => page.locator('#example-card-grid .example-card').count()).toBe(3);
+    await expect.poll(async () => page.locator('#example-card-grid .example-card').count()).toBe(9);
 
     // 수업 카드(h3) 클릭 → 파일 지연 로드
     await page.locator('[data-example-id="lesson-h3-drive"]').click();

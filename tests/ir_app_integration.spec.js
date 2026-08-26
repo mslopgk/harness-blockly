@@ -22,16 +22,25 @@ test.describe('IR pipeline app integration', () => {
     await page.locator('#btn-sync-to-blocks').click();
 
     // Python -> blocks: the live workspace now holds only ir_* blocks (legacy parser retired).
-    // Wait for THIS program's blocks, not just "any ir_* blocks": the startup main.py/demo
-    // conversion already fills the workspace with ir_* blocks, so a generic check passes before
-    // the async Convert lands and the next steps read the STARTUP workspace (a race, not a bug —
-    // the `ir_if` is unique to this program).
+    // Wait for THIS program's blocks, not just "any ir_* blocks": the startup demo conversion
+    // already fills the workspace, so a generic check passes before the async Convert lands and
+    // the next steps read the STARTUP workspace (a race, not a bug).
+    // The marker must be unique to THIS program. `ir_if` no longer is — the startup demo is the
+    // 판단 로직 sample (`if conf < 0.8: … else: …`), so it has an ir_if too and this wait used to
+    // fall through to the demo (regen came back as the demo's 6 lines instead of these 3).
+    // The variable set is what tells them apart: this program has exactly `x`, the demo has
+    // conf/label. (Read it from the serialized state — `workspace.getAllVariables()` does not
+    // exist in the vendored Blockly build and a throwing predicate just times out silently.)
+    // Note the block count is NOT a marker: consecutive statements are chained via `next`, so
+    // this 3-line program is ONE top-level block (ir_assign → next: ir_if), not two.
     await page.waitForFunction(() => {
       const ws = window.__blocklyWorkspace;
       const saved = window.Blockly.serialization.workspaces.save(ws);
       const tops = (saved.blocks && saved.blocks.blocks) || [];
+      const vars = (saved.variables || []).map((v) => v.name);
       return tops.length > 0 && tops.every((b) => b.type.startsWith('ir_'))
-        && ws.getAllBlocks(false).some((b) => b.type === 'ir_if');
+        && ws.getAllBlocks(false).some((b) => b.type === 'ir_if')
+        && vars.includes('x') && !vars.includes('conf');
     }, null, { timeout: 60000 });
 
     // block -> Python via the same pipeline the change listener uses, on the live workspace.

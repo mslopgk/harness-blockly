@@ -74,9 +74,9 @@ test.describe('Robot connect UI', () => {
     await page.locator('#robot-connect-btn').click();
     await expect(page.locator('#robot-status')).toContainText('연결됨', { timeout: 15000 });
 
-    // 재보정 시작 → 첫 프리셋으로 이동 호출(home=true) → 뱃지 '로봇 이동됨'
+    // 재보정 시작 → 첫 프리셋으로 이동 호출(home=true) → 뱃지 '팔이 가리킴'
     await page.locator('#calib-start').click();
-    await expect(page.locator('#calib-robot-badge')).toContainText('로봇 이동됨', { timeout: 15000 });
+    await expect(page.locator('#calib-robot-badge')).toContainText('팔이 가리킴', { timeout: 15000 });
     await expect.poll(() => movePresetBody && movePresetBody.home, { timeout: 15000 }).toBe(true);
     expect(movePresetBody.port).toBe('COM8');
     expect(movePresetBody.x).toBe(200);
